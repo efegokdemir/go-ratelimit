@@ -1,0 +1,144 @@
+package limiter
+
+import (
+	"context"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/dheerajk/go-ratelimit/pkg/config"
+	"github.com/redis/go-redis/v9"
+)
+
+// DynamicLimiter implements a rate limiter with per-client configurations
+type DynamicLimiter struct {
+	rdb        *redis.Client
+	prefix     string
+	cfgManager *config.ConfigManager
+	lua        *redis.Script
+	keyBuilder func(*http.Request) string
+}
+
+// NewDynamicLimiter creates a rate limiter with dynamic per-client configurations
+func NewDynamicLimiter(
+	rdb *redis.Client,
+	prefix string,
+	defaultRequestLimit int,
+	defaultByteLimit int64,
+	defaultWindow time.Duration,
+	keyBuilder func(*http.Request) string,
+) *DynamicLimiter {
+	// Create default config
+	defaultCfg := config.ClientConfig{
+		RequestLimit: defaultRequestLimit,
+		ByteLimit:    defaultByteLimit,
+		WindowSecs:   int(defaultWindow.Seconds()),
+	}
+
+	// Create config manager
+	cfgManager := config.NewConfigManager(rdb, prefix, defaultCfg)
+
+	return &DynamicLimiter{
+		rdb:        rdb,
+		prefix:     prefix,
+		cfgManager: cfgManager,
+		lua:        redis.NewScript(dualSlidingLua), // Reuse the same Lua script
+		keyBuilder: keyBuilder,
+	}
+}
+
+func (dl *DynamicLimiter) requestKey(k string) string { return dl.prefix + ":req:" + k }
+func (dl *DynamicLimiter) byteKey(k string) string    { return dl.prefix + ":byte:" + k }
+
+// GetConfigManager returns the config manager for setting client-specific configs
+func (dl *DynamicLimiter) GetConfigManager() *config.ConfigManager {
+	return dl.cfgManager
+}
+
+// extractClientID extracts the client identifier from the key
+func extractClientID(key string) string {
+	// Extract API key from the composite key
+	if strings.HasPrefix(key, "apikey:") {
+		parts := strings.Split(key, "|")
+		if len(parts) > 0 {
+			return strings.TrimPrefix(parts[0], "apikey:")
+		}
+	}
+	return key
+}
+
+// AllowRequest checks if a new request is allowed based on client-specific config
+func (dl *DynamicLimiter) AllowRequest(ctx context.Context, r *http.Request) (bool, int64, int64, error) {
+	// Get the key for this request
+	k := dl.keyBuilder(r)
+
+	// Extract client ID for config lookup
+	clientID := extractClientID(k)
+
+	// Get client-specific config
+	cfg, err := dl.cfgManager.GetConfig(ctx, clientID)
+	if err != nil {
+		// Log the error but continue with default config
+		// This is a fail-open approach for config errors
+	}
+
+	// Execute Lua script with client-specific limits
+	windowMs := int64(cfg.WindowSecs * 1000)
+	res, err := dl.lua.Run(ctx, dl.rdb,
+		[]string{dl.requestKey(k), dl.byteKey(k)},
+		windowMs, cfg.RequestLimit, cfg.ByteLimit, 0).Result()
+	if err != nil {
+		return false, 0, 0, err
+	}
+
+	arr := res.([]interface{})
+	allowed := arr[0].(int64) == 1
+	remaining := arr[1].(int64)
+	reset := arr[2].(int64)
+	return allowed, remaining, reset, nil
+}
+
+// RecordBytes records the bytes used for a request with client-specific config
+func (dl *DynamicLimiter) RecordBytes(ctx context.Context, r *http.Request, bytes int64) (bool, int64, int64, error) {
+	// Get the key for this request
+	k := dl.keyBuilder(r)
+
+	// Extract client ID for config lookup
+	clientID := extractClientID(k)
+
+	// Get client-specific config
+	cfg, err := dl.cfgManager.GetConfig(ctx, clientID)
+	if err != nil {
+		// Log the error but continue with default config
+	}
+
+	// Execute Lua script with client-specific limits
+	windowMs := int64(cfg.WindowSecs * 1000)
+	res, err := dl.lua.Run(ctx, dl.rdb,
+		[]string{dl.requestKey(k), dl.byteKey(k)},
+		windowMs, cfg.RequestLimit, cfg.ByteLimit, bytes).Result()
+	if err != nil {
+		return false, 0, 0, err
+	}
+
+	arr := res.([]interface{})
+	allowed := arr[0].(int64) == 1
+	remaining := arr[1].(int64)
+	reset := arr[2].(int64)
+	return allowed, remaining, reset, nil
+}
+
+// GetClientConfig returns the current config for a client
+func (dl *DynamicLimiter) GetClientConfig(ctx context.Context, clientID string) (config.ClientConfig, error) {
+	return dl.cfgManager.GetConfig(ctx, clientID)
+}
+
+// SetClientConfig sets a custom config for a client
+func (dl *DynamicLimiter) SetClientConfig(ctx context.Context, clientID string, cfg config.ClientConfig) error {
+	return dl.cfgManager.SetConfig(ctx, clientID, cfg)
+}
+
+// ResetClientConfig removes custom config for a client, reverting to defaults
+func (dl *DynamicLimiter) ResetClientConfig(ctx context.Context, clientID string) error {
+	return dl.cfgManager.DeleteConfig(ctx, clientID)
+}
