@@ -1,93 +1,317 @@
-# Go Ratelimit
+# Go Rate Limiting Library
 
+A comprehensive, Redis-based rate limiting library for Go HTTP services.
 
+## Features
 
-## Getting started
-
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
-
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
-
-```
-cd existing_repo
-git remote add origin https://gitlab-master.nvidia.com/dkapur/go-ratelimit.git
-git branch -M main
-git push -uf origin main
-```
-
-## Integrate with your tools
-
-- [ ] [Set up project integrations](https://gitlab-master.nvidia.com/dkapur/go-ratelimit/-/settings/integrations)
-
-## Collaborate with your team
-
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
-
-## Test and Deploy
-
-Use the built-in continuous integration in GitLab.
-
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
-
-***
-
-# Editing this README
-
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
-
-## Suggestions for a good README
-
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+- **Dual Rate Limiting**: Limits both request count and response size (bytes served)
+- **Sliding Window Algorithm**: More accurate than fixed windows, prevents traffic spikes at window boundaries
+- **Redis-Based**: Works across multiple server instances in a distributed environment
+- **Dynamic Per-Client Configuration**: Customize rate limits for each client at runtime
+- **RFC Compliant Headers**: Returns standard rate limit headers for client awareness
+- **Customizable Key Generation**: Limit by API key, IP address, route, or any combination
 
 ## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+```bash
+go get github.com/dheerajk/go-ratelimit/pkg/ratelimit
+```
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+## Quick Start
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+```go
+import (
+    "github.com/dheerajk/go-ratelimit/pkg/ratelimit"
+    "github.com/redis/go-redis/v9"
+)
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+func main() {
+    // Create Redis client
+    rdb := redis.NewClient(&redis.Options{
+        Addr: "localhost:6379",
+    })
+    
+    // Create rate limiter with default options
+    options := ratelimit.DefaultOptions(rdb)
+    service := ratelimit.New(options)
+    
+    // Create your HTTP handler
+    mux := http.NewServeMux()
+    mux.HandleFunc("/api/resource", handleResource)
+    
+    // Apply rate limiting middleware
+    handler := service.Middleware()(mux)
+    
+    // Start server
+    http.ListenAndServe(":8080", handler)
+}
+```
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+## Configuration Options
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+```go
+// Create with custom options
+options := ratelimit.Options{
+    Redis:        redisClient,
+    Prefix:       "myapp",
+    RequestLimit: 100,              // 100 requests per window
+    ByteLimit:    5 * 1024 * 1024,  // 5MB per window
+    Window:       time.Minute,      // 1 minute window
+    KeyFunc:      ratelimit.KeyByAPIKeyAndRoute,
+    AdminKey:     "my-admin-key",
+}
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+service := ratelimit.New(options)
+```
+
+## Key Functions
+
+The library provides several built-in key functions:
+
+```go
+// Limit by API key (falls back to IP if no key)
+ratelimit.KeyByAPIKey
+
+// Limit by API key and route
+ratelimit.KeyByAPIKeyAndRoute
+
+// Limit by IP address only
+ratelimit.KeyByIP
+
+// Custom key function
+myKeyFunc := func(r *http.Request) string {
+    return "tenant:" + r.Header.Get("X-Tenant-ID")
+}
+```
+
+## Selective Rate Limiting
+
+You can apply rate limiting only to specific endpoints:
+
+```go
+// Create a matcher for specific paths
+matcher := ratelimit.MatchAny(
+    ratelimit.MatchPathExact("/api/expensive"),
+    ratelimit.MatchPathPrefix("/api/users/"),
+    ratelimit.MatchPathRegex("^/api/.*\\.json$"),
+)
+
+// Apply rate limiting only to paths matching the criteria
+handler := service.SelectiveMiddleware(matcher)(mux)
+```
+
+Available matchers:
+- `MatchPathExact(path)` - Matches exact path
+- `MatchPathPrefix(prefix)` - Matches paths with a specific prefix
+- `MatchPathRegex(pattern)` - Matches paths using a regular expression
+- `MatchAny(matchers...)` - Matches if any matcher matches
+- `MatchNone(matchers...)` - Matches if no matcher matches
+
+## Dynamic Client Configuration
+
+### Programmatic Configuration
+
+```go
+// Set custom limits for a specific client
+service.SetClientConfig("premium-client", 
+    1000,               // 1000 requests
+    10 * 1024 * 1024,   // 10MB
+    60)                 // per minute
+
+// Reset client to default configuration
+service.ResetClientConfig("client-id")
+```
+
+### REST API Configuration
+
+Register the configuration API endpoints:
+
+```go
+// Register the configuration API
+service.RegisterConfigAPI(mux)
+```
+
+This adds the following endpoints:
+
+- `GET /admin/config/{clientID}` - Get client's configuration
+- `PUT /admin/config/{clientID}` - Update client's configuration
+- `DELETE /admin/config/{clientID}` - Reset client to default configuration
+
+Example API usage:
+
+```bash
+# Get a client's configuration
+curl -H "X-Admin-Key: my-admin-key" \
+     http://localhost:8080/admin/config/client123
+
+# Update a client's configuration
+curl -X PUT -H "X-Admin-Key: my-admin-key" \
+     -H "Content-Type: application/json" \
+     -d '{"request_limit": 200, "byte_limit": 2097152, "window_secs": 60}' \
+     http://localhost:8080/admin/config/client123
+
+# Reset a client to default configuration
+curl -X DELETE -H "X-Admin-Key: my-admin-key" \
+     http://localhost:8080/admin/config/client123
+```
+
+## Architecture
+
+The library consists of several modular components:
+
+```
+pkg/
+├── ratelimit/
+│   └── ratelimit.go       # Main package API
+├── limiter/
+│   ├── redis.go           # Simple request count limiter
+│   ├── dual_limiter.go    # Combined request count and byte limiter
+│   └── dynamic_limiter.go # Dynamic per-client configurable limiter
+├── middleware/
+│   ├── ratelimit.go       # HTTP middleware for request count limiting
+│   ├── dual_ratelimit.go  # HTTP middleware for dual limiting
+│   └── bytecounter.go     # Response writer wrapper to count bytes
+├── config/
+│   └── manager.go         # Per-client configuration manager
+├── api/
+│   └── config_handler.go  # API endpoints for managing client configs
+└── utils/
+    └── request.go         # Helper functions for key generation
+```
+
+### Flow Diagram
+
+```mermaid
+flowchart TD
+    subgraph Client
+        A[HTTP Request]
+    end
+    
+    subgraph "Rate Limiting System"
+        subgraph "HTTP Server"
+            B[Incoming Request]
+            Z[Response to Client]
+        end
+        
+        subgraph "DynamicRateLimitMiddleware"
+            C{Check Request Count Limit}
+            D[Set Rate Limit Headers]
+            E{Request Count Exceeded?}
+            F[Return 429 Too Many Requests]
+            G[Create ByteCounterWriter]
+            H[Call Next Handler]
+            I[Record Bytes Transferred]
+        end
+        
+        subgraph "DynamicLimiter"
+            J[AllowRequest]
+            K[RecordBytes]
+            L[Get Client Configuration]
+            
+            subgraph "Redis Operations"
+                M[Execute Lua Script for Request Count]
+                N[Execute Lua Script for Byte Count]
+            end
+        end
+        
+        subgraph "Redis Database"
+            O[(Request Count ZSET)]
+            P[(Byte Count ZSET)]
+            Q[(Client Configurations)]
+        end
+    end
+    
+    A --> B
+    B --> C
+    C --> L
+    L --> Q
+    L --> J
+    J --> M
+    M --> O
+    O --> J
+    J --> C
+    
+    C --> D
+    D --> E
+    E -->|Yes| F
+    F --> Z
+    
+    E -->|No| G
+    G --> H
+    H --> Z
+    
+    Z --> I
+    I --> K
+    K --> N
+    N --> P
+```
+
+## Examples
+
+See the [cmd/examples](./cmd/examples) directory for complete working examples:
+
+- [Basic Example](./cmd/examples/basic/main.go) - Simple rate limiting setup
+- [Dynamic Example](./cmd/examples/dynamic/main.go) - Dynamic per-client configuration
+
+## Requirements
+
+- Go 1.18 or higher
+- Redis 5.0 or higher
+
+## Development
+
+The project includes a Makefile to simplify common development tasks:
+
+```bash
+# Build the main binary
+make build
+
+# Run tests
+make test
+
+# Run tests with coverage
+make test-cover
+
+# Format code
+make fmt
+
+# Run linter
+make lint
+
+# Build all examples
+make examples
+
+# Run the server example
+make run-server
+
+# Run the basic example
+make run-basic
+
+# Run the dynamic example
+make run-dynamic
+
+# Show all available commands
+make help
+```
+
+### Running Tests
+
+The project includes comprehensive tests for all components:
+
+```bash
+# Run all tests
+make test
+
+# Run tests with coverage report
+make test-cover
+```
+
+Tests cover:
+- Key generation and request utilities
+- Path matching for selective rate limiting
+- Byte counting middleware
+- Core rate limiting functionality
 
 ## License
-For open source projects, say how it is licensed.
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+MIT
