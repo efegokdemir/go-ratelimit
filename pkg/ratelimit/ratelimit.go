@@ -47,7 +47,7 @@ func DefaultOptions(redis *redis.Client) Options {
 		RequestLimit: 60,
 		ByteLimit:    1048576, // 1MB
 		Window:       time.Minute,
-		KeyFunc:      utils.KeyByAPIKeyAndRoute,
+		KeyFunc:      utils.KeyByIP,
 		AdminKey:     "change-me-in-production",
 	}
 }
@@ -67,7 +67,7 @@ func New(options Options) *Service {
 	}
 
 	if options.KeyFunc == nil {
-		options.KeyFunc = utils.KeyByAPIKeyAndRoute
+		options.KeyFunc = utils.KeyByIP
 	}
 
 	if options.Prefix == "" {
@@ -180,17 +180,23 @@ func WithKeyFunc(keyFunc func(*http.Request) string) func(*http.Request) string 
 	return keyFunc
 }
 
-// KeyByAPIKey extracts key based on API key only
-func KeyByAPIKey(r *http.Request) string {
-	return utils.KeyByAPIKey(r)
-}
-
-// KeyByAPIKeyAndRoute extracts key based on API key and route
-func KeyByAPIKeyAndRoute(r *http.Request) string {
-	return utils.KeyByAPIKeyAndRoute(r)
-}
-
 // KeyByIP extracts key based on client IP
 func KeyByIP(r *http.Request) string {
 	return utils.KeyByIP(r)
+}
+
+// KeyByClientID returns a function that extracts key based on client ID
+// The client ID should be extracted by the API implementation after authentication
+func KeyByClientID(clientID string) func(*http.Request) string {
+	return func(r *http.Request) string {
+		return utils.KeyByClientID(r, clientID)
+	}
+}
+
+// KeyByClientIDAndRoute returns a function that extracts key based on client ID and route
+// The client ID should be extracted by the API implementation after authentication
+func KeyByClientIDAndRoute(clientID string) func(*http.Request) string {
+	return func(r *http.Request) string {
+		return utils.KeyByClientIDAndRoute(r, clientID)
+	}
 }

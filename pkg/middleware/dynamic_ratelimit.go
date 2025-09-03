@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/dheerajk/go-ratelimit/pkg/logger"
+
 	"github.com/dheerajk/go-ratelimit/pkg/limiter"
 )
 
@@ -23,11 +25,13 @@ func DynamicRateLimitMiddleware(dl *limiter.DynamicLimiter) func(http.Handler) h
 			cfg, _ := dl.GetClientConfig(r.Context(), clientID)
 
 			// Set request count rate limit headers
+			logger.Log.Info(fmt.Sprintf("Setting request count rate limit headers for client %s", clientID))
 			w.Header().Set("RateLimit-Request-Limit", fmt.Sprintf("%d", cfg.RequestLimit))
 			w.Header().Set("RateLimit-Request-Remaining", fmt.Sprintf("%d", remaining))
 			w.Header().Set("RateLimit-Request-Reset", fmt.Sprintf("%d", reset))
 
 			if !allowed {
+				logger.Log.Info(fmt.Sprintf("Request rate limit exceeded for client %s", clientID))
 				w.Header().Set("Retry-After", fmt.Sprintf("%d", reset))
 				http.Error(w, "request rate limit exceeded", http.StatusTooManyRequests)
 				return
@@ -39,22 +43,23 @@ func DynamicRateLimitMiddleware(dl *limiter.DynamicLimiter) func(http.Handler) h
 			// Call the next handler with our wrapped response writer
 			next.ServeHTTP(bcw, r)
 
-			// After the handler has completed, record the bytes used
-			// This is post-facto recording - we can't prevent the bytes from being sent
-			// but we record it for future rate limiting decisions
-			if bcw.StatusCode < 400 { // Only count successful responses
+			// Only count successful responses
+			if bcw.StatusCode < 400 {
+				logger.Log.Info(fmt.Sprintf("Recording bytes used for client %s", clientID))
 				dl.RecordBytes(r.Context(), r, bcw.BytesWritten)
-				// Note: We can't set headers here as they won't be sent after the body
 			}
 		})
 	}
 }
 
 // extractClientID extracts a client ID from the request for config lookup
+// This is a placeholder implementation. In a real application, this would extract
+// the client ID from the authenticated context after proper authentication and authorization.
 func extractClientID(r *http.Request) string {
-	apiKey := r.Header.Get("X-API-Key")
-	if apiKey != "" {
-		return apiKey
+	// For demo purposes, we'll use a query parameter
+	clientID := r.URL.Query().Get("client_id")
+	if clientID != "" {
+		return clientID
 	}
 	return ""
 }

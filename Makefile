@@ -60,19 +60,19 @@ examples: build-basic build-dynamic build-server
 build-basic:
 	@echo "Building basic example..."
 	@mkdir -p $(BUILD_DIR)/examples
-	$(GO) build $(GOFLAGS) -o $(BUILD_DIR)/examples/basic $(EXAMPLES_DIR)/basic
+	$(GO) build $(GOFLAGS) -o $(BUILD_DIR)/examples/basic ./$(EXAMPLES_DIR)/basic
 
 # Build dynamic example
 build-dynamic:
 	@echo "Building dynamic example..."
 	@mkdir -p $(BUILD_DIR)/examples
-	$(GO) build $(GOFLAGS) -o $(BUILD_DIR)/examples/dynamic $(EXAMPLES_DIR)/dynamic
+	$(GO) build $(GOFLAGS) -o $(BUILD_DIR)/examples/dynamic ./$(EXAMPLES_DIR)/dynamic
 
 # Build server
 build-server:
 	@echo "Building server..."
 	@mkdir -p $(BUILD_DIR)
-	$(GO) build $(GOFLAGS) -o $(BUILD_DIR)/server $(SERVER_DIR)
+	$(GO) build $(GOFLAGS) -o $(BUILD_DIR)/server ./$(SERVER_DIR)
 
 # Run basic example
 run-basic:

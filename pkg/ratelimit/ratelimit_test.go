@@ -41,12 +41,11 @@ func TestDefaultOptions(t *testing.T) {
 	}
 
 	// Test the key function
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("X-API-Key", "test-key")
+	req := httptest.NewRequest(http.MethodGet, "/test?client_id=test-client", nil)
 	req.RemoteAddr = "192.0.2.1:1234"
 
 	keyResult := options.KeyFunc(req)
-	expectedKey := "apikey:test-key|route:/test"
+	expectedKey := "ip:192.0.2.1"
 	if keyResult != expectedKey {
 		t.Errorf("Expected key '%s', got '%s'", expectedKey, keyResult)
 	}
@@ -141,28 +140,30 @@ func TestMatcherFunctions(t *testing.T) {
 func TestKeyFunctions(t *testing.T) {
 	// Test that the key functions are properly exposed
 	req := httptest.NewRequest(http.MethodGet, "/api/users/123", nil)
-	req.Header.Set("X-API-Key", "test-key")
 	req.RemoteAddr = "192.0.2.1:1234"
-
-	// Test KeyByAPIKey
-	apiKeyResult := KeyByAPIKey(req)
-	expectedAPIKey := "apikey:test-key"
-	if apiKeyResult != expectedAPIKey {
-		t.Errorf("Expected '%s', got '%s'", expectedAPIKey, apiKeyResult)
-	}
-
-	// Test KeyByAPIKeyAndRoute
-	routeResult := KeyByAPIKeyAndRoute(req)
-	expectedRoute := "apikey:test-key|route:/api/users"
-	if routeResult != expectedRoute {
-		t.Errorf("Expected '%s', got '%s'", expectedRoute, routeResult)
-	}
 
 	// Test KeyByIP
 	ipResult := KeyByIP(req)
 	expectedIP := "ip:192.0.2.1"
 	if ipResult != expectedIP {
 		t.Errorf("Expected '%s', got '%s'", expectedIP, ipResult)
+	}
+
+	// Test KeyByClientID
+	clientID := "test-client"
+	clientIDFunc := KeyByClientID(clientID)
+	clientIDResult := clientIDFunc(req)
+	expectedClientID := "client:test-client"
+	if clientIDResult != expectedClientID {
+		t.Errorf("Expected '%s', got '%s'", expectedClientID, clientIDResult)
+	}
+
+	// Test KeyByClientIDAndRoute
+	clientRouteFunc := KeyByClientIDAndRoute(clientID)
+	clientRouteResult := clientRouteFunc(req)
+	expectedClientRoute := "client:test-client|route:/api/users"
+	if clientRouteResult != expectedClientRoute {
+		t.Errorf("Expected '%s', got '%s'", expectedClientRoute, clientRouteResult)
 	}
 }
 

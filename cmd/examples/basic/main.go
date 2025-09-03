@@ -3,8 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
+
+	"github.com/dheerajk/go-ratelimit/pkg/logger"
 
 	"github.com/dheerajk/go-ratelimit/pkg/ratelimit"
 	"github.com/redis/go-redis/v9"
@@ -18,7 +19,7 @@ func main() {
 
 	// Verify Redis connection
 	if err := rdb.Ping(context.Background()).Err(); err != nil {
-		log.Fatalf("Redis connection failed: %v", err)
+		logger.Log.Error(fmt.Sprintf("Redis connection failed: %v", err))
 	}
 
 	// Create rate limiting service with default options
@@ -50,13 +51,13 @@ func main() {
 	handler := service.Middleware()(mux)
 
 	// Start server
-	log.Println("Server running on :8080")
-	log.Println("Try these endpoints:")
-	log.Println("- GET /api/hello - Simple response")
-	log.Println("- GET /api/large - Large response (100KB)")
-	log.Println("Add X-API-Key header to identify clients")
+	logger.Log.Info("Server running on :8080")
+	logger.Log.Info("Try these endpoints:")
+	logger.Log.Info("- GET /api/hello?client_id=user123 - Simple response")
+	logger.Log.Info("- GET /api/large?client_id=user123 - Large response (100KB)")
+	logger.Log.Info("Add client_id query parameter to identify clients")
 
 	if err := http.ListenAndServe(":8080", handler); err != nil {
-		log.Fatal(err)
+		logger.Log.Error(fmt.Sprintf("Failed to start server: %v", err))
 	}
 }

@@ -134,9 +134,9 @@ func (cm *ConfigManager) DeleteConfig(ctx context.Context, clientID string) erro
 
 // ExtractClientID extracts a client identifier from a request
 // This should match the logic used in your key builders
-func ExtractClientID(apiKey string) string {
-	if apiKey == "" {
+func ExtractClientID(clientID string) string {
+	if clientID == "" {
 		return ""
 	}
-	return apiKey
+	return clientID
 }

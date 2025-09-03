@@ -6,25 +6,20 @@ import (
 	"testing"
 )
 
-func TestKeyByAPIKey(t *testing.T) {
+func TestKeyByClientID(t *testing.T) {
 	tests := []struct {
 		name     string
-		apiKey   string
+		clientID string
 		expected string
 	}{
 		{
-			name:     "with api key",
-			apiKey:   "test-key-123",
-			expected: "apikey:test-key-123",
+			name:     "with client ID",
+			clientID: "test-client-123",
+			expected: "client:test-client-123",
 		},
 		{
-			name:     "without api key",
-			apiKey:   "",
-			expected: "ip:192.0.2.1", // IP from the test request
-		},
-		{
-			name:     "with whitespace api key",
-			apiKey:   "  ",
+			name:     "without client ID",
+			clientID: "",
 			expected: "ip:192.0.2.1", // IP from the test request
 		},
 	}
@@ -33,13 +28,10 @@ func TestKeyByAPIKey(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 			req.RemoteAddr = "192.0.2.1:1234" // Test IP
-			if tc.apiKey != "" {
-				req.Header.Set("X-API-Key", tc.apiKey)
-			}
 
-			result := KeyByAPIKey(req)
+			result := KeyByClientID(req, tc.clientID)
 			if result != tc.expected {
-				t.Errorf("KeyByAPIKey() = %v, want %v", result, tc.expected)
+				t.Errorf("KeyByClientID() = %v, want %v", result, tc.expected)
 			}
 		})
 	}
@@ -88,41 +80,41 @@ func TestKeyByIP(t *testing.T) {
 	}
 }
 
-func TestKeyByAPIKeyAndRoute(t *testing.T) {
+func TestKeyByClientIDAndRoute(t *testing.T) {
 	tests := []struct {
 		name     string
-		apiKey   string
+		clientID string
 		path     string
 		ip       string
 		expected string
 	}{
 		{
-			name:     "with api key and path",
-			apiKey:   "test-key-123",
+			name:     "with client ID and path",
+			clientID: "test-client-123",
 			path:     "/v1/users",
 			ip:       "192.0.2.1:1234",
-			expected: "apikey:test-key-123|route:/v1/users",
+			expected: "client:test-client-123|route:/v1/users",
 		},
 		{
-			name:     "without api key",
-			apiKey:   "",
+			name:     "without client ID",
+			clientID: "",
 			path:     "/v1/products",
 			ip:       "192.0.2.1:1234",
 			expected: "ip:192.0.2.1|route:/v1/products",
 		},
 		{
 			name:     "with nested path",
-			apiKey:   "test-key-123",
+			clientID: "test-client-123",
 			path:     "/v1/users/123/profile",
 			ip:       "192.0.2.1:1234",
-			expected: "apikey:test-key-123|route:/v1/users",
+			expected: "client:test-client-123|route:/v1/users",
 		},
 		{
 			name:     "with root path",
-			apiKey:   "test-key-123",
+			clientID: "test-client-123",
 			path:     "/",
 			ip:       "192.0.2.1:1234",
-			expected: "apikey:test-key-123|route:/",
+			expected: "client:test-client-123|route:/",
 		},
 	}
 
@@ -130,13 +122,10 @@ func TestKeyByAPIKeyAndRoute(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
 			req.RemoteAddr = tc.ip
-			if tc.apiKey != "" {
-				req.Header.Set("X-API-Key", tc.apiKey)
-			}
 
-			result := KeyByAPIKeyAndRoute(req)
+			result := KeyByClientIDAndRoute(req, tc.clientID)
 			if result != tc.expected {
-				t.Errorf("KeyByAPIKeyAndRoute() = %v, want %v", result, tc.expected)
+				t.Errorf("KeyByClientIDAndRoute() = %v, want %v", result, tc.expected)
 			}
 		})
 	}

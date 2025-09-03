@@ -9,7 +9,7 @@ A comprehensive, Redis-based rate limiting library for Go HTTP services.
 - **Redis-Based**: Works across multiple server instances in a distributed environment
 - **Dynamic Per-Client Configuration**: Customize rate limits for each client at runtime
 - **RFC Compliant Headers**: Returns standard rate limit headers for client awareness
-- **Customizable Key Generation**: Limit by API key, IP address, route, or any combination
+- **Customizable Key Generation**: Limit by client ID, IP address, route, or any combination
 
 ## Installation
 
@@ -57,7 +57,7 @@ options := ratelimit.Options{
     RequestLimit: 100,              // 100 requests per window
     ByteLimit:    5 * 1024 * 1024,  // 5MB per window
     Window:       time.Minute,      // 1 minute window
-    KeyFunc:      ratelimit.KeyByAPIKeyAndRoute,
+    KeyFunc:      ratelimit.KeyByClientIDAndRoute("client123"),
     AdminKey:     "my-admin-key",
 }
 
@@ -69,11 +69,11 @@ service := ratelimit.New(options)
 The library provides several built-in key functions:
 
 ```go
-// Limit by API key (falls back to IP if no key)
-ratelimit.KeyByAPIKey
+// Limit by client ID
+ratelimit.KeyByClientID("client123")
 
-// Limit by API key and route
-ratelimit.KeyByAPIKeyAndRoute
+// Limit by client ID and route
+ratelimit.KeyByClientIDAndRoute("client123")
 
 // Limit by IP address only
 ratelimit.KeyByIP

@@ -6,33 +6,30 @@ import (
 	"strings"
 )
 
-// KeyByAPIKey returns a key based on API key only
-func KeyByAPIKey(r *http.Request) string {
-	if k := strings.TrimSpace(r.Header.Get("X-API-Key")); k != "" {
-		return "apikey:" + k
-	}
-	// Fallback to per-IP
-	ip := ClientIP(r)
-	return "ip:" + ip
-}
-
 // KeyByIP returns a key based only on client IP
 func KeyByIP(r *http.Request) string {
 	return "ip:" + ClientIP(r)
 }
 
-// KeyByAPIKeyOrIP returns a key based on API key or IP address (alias for KeyByAPIKey)
-func KeyByAPIKeyOrIP(r *http.Request) string {
-	return KeyByAPIKey(r)
+// KeyByClientID returns a key based on client ID
+// The client ID should be extracted by the API implementation after authentication
+func KeyByClientID(r *http.Request, clientID string) string {
+	if clientID == "" {
+		// Fallback to IP if no client ID provided
+		return "ip:" + ClientIP(r)
+	}
+	return "client:" + clientID
 }
 
-// KeyByAPIKeyAndRoute returns a key based on API key and route
-func KeyByAPIKeyAndRoute(r *http.Request) string {
+// KeyByClientIDAndRoute returns a key based on client ID and route
+// The client ID should be extracted by the API implementation after authentication
+func KeyByClientIDAndRoute(r *http.Request, clientID string) string {
 	seg := RouteBucket(r.URL.Path)
-	if k := strings.TrimSpace(r.Header.Get("X-API-Key")); k != "" {
-		return "apikey:" + k + "|route:" + seg
+	if clientID == "" {
+		// Fallback to IP if no client ID provided
+		return "ip:" + ClientIP(r) + "|route:" + seg
 	}
-	return "ip:" + ClientIP(r) + "|route:" + seg
+	return "client:" + clientID + "|route:" + seg
 }
 
 // RouteBucket normalizes a path to a small set of buckets
