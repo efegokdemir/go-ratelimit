@@ -36,10 +36,6 @@ func TestDefaultOptions(t *testing.T) {
 		t.Errorf("Expected window 1m0s, got %s", options.Window)
 	}
 
-	if options.AdminKey != "change-me-in-production" {
-		t.Errorf("Expected admin key 'change-me-in-production', got '%s'", options.AdminKey)
-	}
-
 	// Test the key function
 	req := httptest.NewRequest(http.MethodGet, "/test?client_id=test-client", nil)
 	req.RemoteAddr = "192.0.2.1:1234"

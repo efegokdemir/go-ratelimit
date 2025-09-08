@@ -34,9 +34,6 @@ type Options struct {
 
 	// Function to extract key from request
 	KeyFunc func(*http.Request) string
-
-	// Admin key for configuration API
-	AdminKey string
 }
 
 // DefaultOptions returns sensible default options
@@ -48,7 +45,6 @@ func DefaultOptions(redis *redis.Client) Options {
 		ByteLimit:    1048576, // 1MB
 		Window:       time.Minute,
 		KeyFunc:      utils.KeyByIP,
-		AdminKey:     "change-me-in-production",
 	}
 }
 
@@ -86,7 +82,6 @@ func New(options Options) *Service {
 
 	// Create the config API handler
 	configHandler := api.NewConfigHandler(dynamicLimiter)
-	configHandler.SetAdminKey(options.AdminKey)
 
 	// Create the middleware
 	middlewareFunc := middleware.DynamicRateLimitMiddleware(dynamicLimiter)

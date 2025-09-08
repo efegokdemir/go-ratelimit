@@ -62,7 +62,6 @@ func main() {
 		ByteLimit:    512 * 1024, // 512KB per minute by default
 		Window:       time.Minute,
 		KeyFunc:      keyByClientID,
-		AdminKey:     "my-admin-key",
 	}
 
 	service := ratelimit.New(options)
@@ -123,7 +122,6 @@ func main() {
 	logger.Log.Info("- GET /api/hello?client_id=user123 - Simple response")
 	logger.Log.Info("- GET /api/large?client_id=user123 - Large response (100KB)")
 	logger.Log.Info("- GET /api/my-limits?client_id=user123 - View your rate limits")
-	logger.Log.Info("Admin endpoints (use X-Admin-Key: my-admin-key):")
 	logger.Log.Info("- GET /admin/config/{clientID} - Get client's rate limit config")
 	logger.Log.Info("- PUT /admin/config/{clientID} - Update client's rate limit config")
 	logger.Log.Info("- DELETE /admin/config/{clientID} - Reset client to default config")
