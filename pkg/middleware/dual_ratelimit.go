@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/dheerajk/go-ratelimit/pkg/limiter"
+	"gitlab-master.nvidia.com/kratos-dataverse-observability/go-ratelimit/pkg/limiter"
 )
 
 // DualRateLimitMiddleware enforces both request count and byte-based rate limiting
