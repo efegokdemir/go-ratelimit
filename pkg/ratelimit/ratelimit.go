@@ -7,11 +7,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/dheerajk/go-ratelimit/pkg/api"
-	"github.com/dheerajk/go-ratelimit/pkg/config"
-	"github.com/dheerajk/go-ratelimit/pkg/limiter"
-	"github.com/dheerajk/go-ratelimit/pkg/middleware"
-	"github.com/dheerajk/go-ratelimit/pkg/utils"
+	"gitlab-master.nvidia.com/kratos-dataverse-observability/go-ratelimit/pkg/api"
+	"gitlab-master.nvidia.com/kratos-dataverse-observability/go-ratelimit/pkg/config"
+	"gitlab-master.nvidia.com/kratos-dataverse-observability/go-ratelimit/pkg/limiter"
+	"gitlab-master.nvidia.com/kratos-dataverse-observability/go-ratelimit/pkg/middleware"
+	"gitlab-master.nvidia.com/kratos-dataverse-observability/go-ratelimit/pkg/utils"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -34,6 +34,9 @@ type Options struct {
 
 	// Function to extract key from request
 	KeyFunc func(*http.Request) string
+
+	// Logger for rate limiting operations (optional)
+	Logger middleware.Logger
 }
 
 // DefaultOptions returns sensible default options
@@ -54,6 +57,7 @@ type Service struct {
 	configAPI  *api.ConfigHandler
 	middleware func(http.Handler) http.Handler
 	options    Options
+	logger     middleware.Logger
 }
 
 // New creates a new rate limiting service
@@ -83,14 +87,21 @@ func New(options Options) *Service {
 	// Create the config API handler
 	configHandler := api.NewConfigHandler(dynamicLimiter)
 
-	// Create the middleware
-	middlewareFunc := middleware.DynamicRateLimitMiddleware(dynamicLimiter)
+	// Use provided logger or default to no-op
+	logger := options.Logger
+	if logger == nil {
+		logger = middleware.NoOpLogger{}
+	}
+
+	// Create the middleware with logger
+	middlewareFunc := middleware.DynamicRateLimitMiddlewareWithLogger(dynamicLimiter, logger)
 
 	return &Service{
 		limiter:    dynamicLimiter,
 		configAPI:  configHandler,
 		middleware: middlewareFunc,
 		options:    options,
+		logger:     logger,
 	}
 }
 
@@ -194,4 +205,51 @@ func KeyByClientIDAndRoute(clientID string) func(*http.Request) string {
 	return func(r *http.Request) string {
 		return utils.KeyByClientIDAndRoute(r, clientID)
 	}
+}
+
+// KeyByHeader returns a key extraction function that uses a specific HTTP header
+// This is useful for rate limiting by API key, tenant ID, customer ID, collector ID, etc.
+//
+// Example:
+//   // Rate limit by API key
+//   options.KeyFunc = ratelimit.KeyByHeader("X-API-Key")
+//
+//   // Rate limit by collector ID (as used in logging-gateway)
+//   options.KeyFunc = ratelimit.KeyByHeader("collector-id")
+func KeyByHeader(headerName string) func(*http.Request) string {
+	return utils.KeyByHeader(headerName)
+}
+
+// KeyByHeaderWithOptions returns a key extraction function with advanced options
+// This provides fine-grained control over header-based key extraction
+//
+// Example:
+//   options.KeyFunc = ratelimit.KeyByHeaderWithOptions(utils.HeaderKeyOptions{
+//       HeaderName: "X-Tenant-ID",
+//       Prefix: "tenant",
+//       DefaultValue: "default-tenant",
+//       Sanitizer: utils.AlphanumericSanitizer,
+//   })
+func KeyByHeaderWithOptions(opts utils.HeaderKeyOptions) func(*http.Request) string {
+	return utils.KeyByHeaderWithOptions(opts)
+}
+
+// KeyByMultipleHeaders returns a key extraction function that combines multiple headers
+// This is useful when you need composite keys
+//
+// Example:
+//   // Rate limit by tenant AND region
+//   options.KeyFunc = ratelimit.KeyByMultipleHeaders([]string{"X-Tenant-ID", "X-Region"}, ":")
+func KeyByMultipleHeaders(headerNames []string, separator string) func(*http.Request) string {
+	return utils.KeyByMultipleHeaders(headerNames, separator)
+}
+
+// KeyByHeaderWithFallback returns a key extraction function that tries multiple headers in order
+// This is useful when clients might send the same information in different headers
+//
+// Example:
+//   // Try X-API-Key first, then Authorization header
+//   options.KeyFunc = ratelimit.KeyByHeaderWithFallback([]string{"X-API-Key", "Authorization"})
+func KeyByHeaderWithFallback(headerNames []string) func(*http.Request) string {
+	return utils.KeyByHeaderWithFallback(headerNames)
 }

@@ -2,12 +2,14 @@ package limiter
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
-	"github.com/dheerajk/go-ratelimit/pkg/config"
 	"github.com/redis/go-redis/v9"
+	"gitlab-master.nvidia.com/kratos-dataverse-observability/go-ratelimit/pkg/config"
 )
 
 // DynamicLimiter implements a rate limiter with per-client configurations
@@ -141,4 +143,42 @@ func (dl *DynamicLimiter) SetClientConfig(ctx context.Context, clientID string, 
 // ResetClientConfig removes custom config for a client, reverting to defaults
 func (dl *DynamicLimiter) ResetClientConfig(ctx context.Context, clientID string) error {
 	return dl.cfgManager.DeleteConfig(ctx, clientID)
+}
+
+// GetCurrentUsage returns the current byte usage for a client without recording new bytes
+func (dl *DynamicLimiter) GetCurrentUsage(ctx context.Context, r *http.Request) (int64, error) {
+	k := dl.keyBuilder(r)
+	byteKey := dl.byteKey(k)
+	clientID := extractClientID(k)
+
+	// Get client config to get window duration
+	cfg, _ := dl.cfgManager.GetConfig(ctx, clientID)
+
+	// Get current time
+	now := time.Now().UnixMilli()
+	windowMs := int64(cfg.WindowSecs * 1000)
+	minTime := now - windowMs
+
+	// Remove expired entries
+	dl.rdb.ZRemRangeByScore(ctx, byteKey, "-inf", fmt.Sprintf("%d", minTime))
+
+	// Get all current entries
+	entries, err := dl.rdb.ZRange(ctx, byteKey, 0, -1).Result()
+	if err != nil {
+		return 0, err
+	}
+
+	// Sum up the bytes
+	var totalBytes int64
+	for _, entry := range entries {
+		// Extract bytes from "bytes-timestamp-random" format
+		parts := strings.Split(entry, "-")
+		if len(parts) > 0 {
+			if bytes, err := strconv.ParseInt(parts[0], 10, 64); err == nil {
+				totalBytes += bytes
+			}
+		}
+	}
+
+	return totalBytes, nil
 }

@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/dheerajk/go-ratelimit/pkg/limiter"
+	"gitlab-master.nvidia.com/kratos-dataverse-observability/go-ratelimit/pkg/limiter"
 )
 
 // PathMatcher defines a function to determine if a path should be rate limited

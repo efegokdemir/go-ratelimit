@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/dheerajk/go-ratelimit/pkg/config"
+	"gitlab-master.nvidia.com/kratos-dataverse-observability/go-ratelimit/pkg/config"
 )
 
 func TestMatchPathExact(t *testing.T) {

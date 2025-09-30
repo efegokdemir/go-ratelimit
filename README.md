@@ -10,18 +10,20 @@ A comprehensive, Redis-based rate limiting library for Go HTTP services.
 - **Dynamic Per-Client Configuration**: Customize rate limits for each client at runtime
 - **RFC Compliant Headers**: Returns standard rate limit headers for client awareness
 - **Customizable Key Generation**: Limit by client ID, IP address, route, or any combination
+- **Header-Based Rate Limiting**: Rate limit by any HTTP header (API key, tenant ID, collector ID, etc.)
+- **Advanced Header Options**: Sanitizers, prefixes, fallbacks, and composite keys from multiple headers
 
 ## Installation
 
 ```bash
-go get github.com/dheerajk/go-ratelimit/pkg/ratelimit
+go get gitlab-master.nvidia.com/kratos-dataverse-observability/go-ratelimit/pkg/ratelimit
 ```
 
 ## Quick Start
 
 ```go
 import (
-    "github.com/dheerajk/go-ratelimit/pkg/ratelimit"
+    "gitlab-master.nvidia.com/kratos-dataverse-observability/go-ratelimit/pkg/ratelimit"
     "github.com/redis/go-redis/v9"
 )
 
@@ -78,11 +80,31 @@ ratelimit.KeyByClientIDAndRoute("client123")
 // Limit by IP address only
 ratelimit.KeyByIP
 
+// Limit by HTTP header (NEW)
+ratelimit.KeyByHeader("X-API-Key")
+ratelimit.KeyByHeader("X-Tenant-ID")
+ratelimit.KeyByHeader("collector-id")
+
+// Advanced header options (NEW)
+ratelimit.KeyByHeaderWithOptions(utils.HeaderKeyOptions{
+    HeaderName: "X-Tenant-ID",
+    Prefix:     "tenant",
+    Sanitizer:  utils.AlphanumericSanitizer,
+})
+
+// Multiple headers composite key (NEW)
+ratelimit.KeyByMultipleHeaders([]string{"X-Tenant-ID", "X-Region"}, ":")
+
+// Header with fallback chain (NEW)
+ratelimit.KeyByHeaderWithFallback([]string{"X-API-Key", "Authorization"})
+
 // Custom key function
 myKeyFunc := func(r *http.Request) string {
-    return "tenant:" + r.Header.Get("X-Tenant-ID")
+    return "custom:" + r.URL.Path
 }
 ```
+
+📖 **[Detailed Header-Based Rate Limiting Guide](docs/HEADER_BASED_RATE_LIMITING.md)**
 
 ## Selective Rate Limiting
 

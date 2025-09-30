@@ -4,13 +4,21 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/dheerajk/go-ratelimit/pkg/logger"
-
-	"github.com/dheerajk/go-ratelimit/pkg/limiter"
+	"gitlab-master.nvidia.com/kratos-dataverse-observability/go-ratelimit/pkg/limiter"
 )
 
 // DynamicRateLimitMiddleware enforces both request count and byte-based rate limiting with dynamic configs
 func DynamicRateLimitMiddleware(dl *limiter.DynamicLimiter) func(http.Handler) http.Handler {
+	return DynamicRateLimitMiddlewareWithLogger(dl, nil)
+}
+
+// DynamicRateLimitMiddlewareWithLogger enforces rate limiting with a custom logger
+func DynamicRateLimitMiddlewareWithLogger(dl *limiter.DynamicLimiter, log Logger) func(http.Handler) http.Handler {
+	// Use a no-op logger if none provided
+	if log == nil {
+		log = NoOpLogger{}
+	}
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// First check if the request is allowed based on request count
@@ -25,13 +33,31 @@ func DynamicRateLimitMiddleware(dl *limiter.DynamicLimiter) func(http.Handler) h
 			cfg, _ := dl.GetClientConfig(r.Context(), clientID)
 
 			// Set request count rate limit headers
-			logger.Log.Info(fmt.Sprintf("Setting request count rate limit headers for client %s", clientID))
-			w.Header().Set("RateLimit-Request-Limit", fmt.Sprintf("%d", cfg.RequestLimit))
-			w.Header().Set("RateLimit-Request-Remaining", fmt.Sprintf("%d", remaining))
+			log.Info(fmt.Sprintf("Setting rate limit headers for client %s", clientID))
+			if cfg.RequestLimit < 0 {
+				// Request limiting is disabled
+				w.Header().Set("RateLimit-Request-Limit", "unlimited")
+				w.Header().Set("RateLimit-Request-Remaining", "unlimited")
+			} else {
+				w.Header().Set("RateLimit-Request-Limit", fmt.Sprintf("%d", cfg.RequestLimit))
+				w.Header().Set("RateLimit-Request-Remaining", fmt.Sprintf("%d", remaining))
+			}
 			w.Header().Set("RateLimit-Request-Reset", fmt.Sprintf("%d", reset))
 
+			// Get current byte usage to calculate bytes remaining
+			currentUsage, _ := dl.GetCurrentUsage(r.Context(), r)
+			bytesRemaining := cfg.ByteLimit - currentUsage
+			if bytesRemaining < 0 {
+				bytesRemaining = 0
+			}
+
+			// Also set byte rate limit headers (these are always active)
+			w.Header().Set("RateLimit-Bytes-Limit", fmt.Sprintf("%d", cfg.ByteLimit))
+			w.Header().Set("RateLimit-Bytes-Remaining", fmt.Sprintf("%d", bytesRemaining))
+			w.Header().Set("RateLimit-Bytes-Window", fmt.Sprintf("%d", cfg.WindowSecs))
+
 			if !allowed {
-				logger.Log.Info(fmt.Sprintf("Request rate limit exceeded for client %s", clientID))
+				log.Info(fmt.Sprintf("Request rate limit exceeded for client %s", clientID))
 				w.Header().Set("Retry-After", fmt.Sprintf("%d", reset))
 				http.Error(w, "request rate limit exceeded", http.StatusTooManyRequests)
 				return
@@ -45,8 +71,21 @@ func DynamicRateLimitMiddleware(dl *limiter.DynamicLimiter) func(http.Handler) h
 
 			// Only count successful responses
 			if bcw.StatusCode < 400 {
-				logger.Log.Info(fmt.Sprintf("Recording bytes used for client %s", clientID))
-				dl.RecordBytes(r.Context(), r, bcw.BytesWritten)
+				log.Info(fmt.Sprintf("Recording bytes used for client %s: %d bytes", clientID, bcw.BytesWritten))
+
+				// Record bytes and check if byte limit would be exceeded
+				allowed, remaining, reset, err := dl.RecordBytes(r.Context(), r, bcw.BytesWritten)
+
+				// Set byte rate limit headers
+				w.Header().Set("RateLimit-Bytes-Limit", fmt.Sprintf("%d", cfg.ByteLimit))
+				w.Header().Set("RateLimit-Bytes-Remaining", fmt.Sprintf("%d", remaining))
+				w.Header().Set("RateLimit-Bytes-Reset", fmt.Sprintf("%d", reset))
+
+				if !allowed && err == nil {
+					log.Error(fmt.Sprintf("Byte rate limit exceeded for client %s", clientID))
+					// Note: Response is already sent at this point, so we can't return 429
+					// This is logged for monitoring purposes
+				}
 			}
 		})
 	}
