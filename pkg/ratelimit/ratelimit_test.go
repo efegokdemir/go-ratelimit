@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dheerajk/go-ratelimit/pkg/middleware"
+	"gitlab-master.nvidia.com/kratos-dataverse-observability/go-ratelimit/pkg/middleware"
 	"github.com/redis/go-redis/v9"
 )
 

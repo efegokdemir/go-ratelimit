@@ -1,4 +1,4 @@
-module github.com/dheerajk/go-ratelimit
+module gitlab-master.nvidia.com/kratos-dataverse-observability/go-ratelimit
 
 go 1.24
 

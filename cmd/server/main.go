@@ -6,12 +6,12 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/dheerajk/go-ratelimit/pkg/api"
-	"github.com/dheerajk/go-ratelimit/pkg/limiter"
-	logger "github.com/dheerajk/go-ratelimit/pkg/logger"
-	"github.com/dheerajk/go-ratelimit/pkg/middleware"
-	"github.com/dheerajk/go-ratelimit/pkg/ratelimit"
-	"github.com/dheerajk/go-ratelimit/pkg/utils"
+	"gitlab-master.nvidia.com/kratos-dataverse-observability/go-ratelimit/pkg/api"
+	"gitlab-master.nvidia.com/kratos-dataverse-observability/go-ratelimit/pkg/limiter"
+	logger "gitlab-master.nvidia.com/kratos-dataverse-observability/go-ratelimit/pkg/logger"
+	"gitlab-master.nvidia.com/kratos-dataverse-observability/go-ratelimit/pkg/middleware"
+	"gitlab-master.nvidia.com/kratos-dataverse-observability/go-ratelimit/pkg/ratelimit"
+	"gitlab-master.nvidia.com/kratos-dataverse-observability/go-ratelimit/pkg/utils"
 	"github.com/redis/go-redis/v9"
 )
 

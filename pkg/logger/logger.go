@@ -4,7 +4,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/dheerajk/go-ratelimit/pkg/config"
+	"gitlab-master.nvidia.com/kratos-dataverse-observability/go-ratelimit/pkg/config"
 
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"

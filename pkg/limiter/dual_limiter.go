@@ -130,9 +130,11 @@ local reset = 0
 
 -- If bytes is 0, we're just checking request count
 if bytes == 0 then
-    if req_count < req_limit then
+    -- If req_limit is negative, request limiting is disabled
+    if req_limit < 0 or req_count < req_limit then
         allowed = 1
-        remaining = req_limit - req_count
+        -- For disabled limits, return a high number for remaining
+        remaining = req_limit < 0 and 999999 or (req_limit - req_count)
     else
         allowed = 0
         remaining = 0
@@ -151,8 +153,8 @@ else
     end
 end
 
--- If we're checking request count and allowed, add the request
-if bytes == 0 and allowed == 1 then
+-- If we're checking request count and allowed, add the request (unless disabled)
+if bytes == 0 and allowed == 1 and req_limit >= 0 then
     -- unique-ish member: ts-rand
     local req_member = tostring(now_ms) .. "-" .. tostring(math.random(1, 999999))
     redis.call('ZADD', req_key, now_ms, req_member)
