@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-.PHONY: build test clean lint examples run-basic run-dynamic run-server
+
+.PHONY: build test clean lint examples run-basic run-dynamic run-server run-resilient run-dynamic-resilient run-dynamic-only
 
 # Variables
 GO=go
@@ -22,6 +23,9 @@ BUILD_DIR=build
 EXAMPLES_DIR=cmd/examples
 SERVER_DIR=cmd/server
 PKG_DIR=pkg
+RESILIENT_DIR=examples/resilient_limiter
+DYNAMIC_RESILIENT_DIR=examples/dynamic_resilient
+DYNAMIC_ONLY_DIR=examples/dynamic_only
 
 # Build the main binary
 build:
@@ -68,7 +72,7 @@ tidy:
 	$(GO) mod tidy
 
 # Build examples
-examples: build-basic build-dynamic build-server
+examples: build-basic build-server build-resilient build-dynamic-resilient build-dynamic-only
 
 # Build basic example
 build-basic:
@@ -76,17 +80,29 @@ build-basic:
 	@mkdir -p $(BUILD_DIR)/examples
 	$(GO) build $(GOFLAGS) -o $(BUILD_DIR)/examples/basic ./$(EXAMPLES_DIR)/basic
 
-# Build dynamic example
-build-dynamic:
-	@echo "Building dynamic example..."
-	@mkdir -p $(BUILD_DIR)/examples
-	$(GO) build $(GOFLAGS) -o $(BUILD_DIR)/examples/dynamic ./$(EXAMPLES_DIR)/dynamic
-
 # Build server
 build-server:
 	@echo "Building server..."
 	@mkdir -p $(BUILD_DIR)
 	$(GO) build $(GOFLAGS) -o $(BUILD_DIR)/server ./$(SERVER_DIR)
+
+# Build resilient example
+build-resilient:
+	@echo "Building resilient example..."
+	@mkdir -p $(BUILD_DIR)/examples
+	$(GO) build $(GOFLAGS) -o $(BUILD_DIR)/examples/resilient ./$(RESILIENT_DIR)
+
+# Build dynamic-resilient example
+build-dynamic-resilient:
+	@echo "Building dynamic-resilient example..."
+	@mkdir -p $(BUILD_DIR)/examples
+	$(GO) build $(GOFLAGS) -o $(BUILD_DIR)/examples/dynamic-resilient ./$(DYNAMIC_RESILIENT_DIR)
+
+# Build dynamic-only example
+build-dynamic-only:
+	@echo "Building dynamic-only example..."
+	@mkdir -p $(BUILD_DIR)/examples
+	$(GO) build $(GOFLAGS) -o $(BUILD_DIR)/examples/dynamic-only ./$(DYNAMIC_ONLY_DIR)
 
 # Run basic example
 run-basic:
@@ -103,26 +119,46 @@ run-server:
 	@echo "Running server..."
 	$(GO) run $(SERVER_DIR)/main.go
 
+# Run resilient example
+run-resilient:
+	@echo "Running resilient example..."
+	$(GO) run $(RESILIENT_DIR)/main.go
+
+# Run dynamic-resilient example
+run-dynamic-resilient:
+	@echo "Running dynamic-resilient example..."
+	$(GO) run $(DYNAMIC_RESILIENT_DIR)/main.go
+
+# Run dynamic-only example
+run-dynamic-only:
+	@echo "Running dynamic-only example..."
+	$(GO) run $(DYNAMIC_ONLY_DIR)/main.go
+
 # Default target
 all: clean build test lint examples
 
 # Help
 help:
 	@echo "Available targets:"
-	@echo "  build        - Build the main binary"
-	@echo "  test         - Run tests"
-	@echo "  test-cover   - Run tests with coverage"
-	@echo "  clean        - Clean build artifacts"
-	@echo "  lint         - Run linter"
-	@echo "  fmt          - Format code"
-	@echo "  verify       - Verify dependencies"
-	@echo "  tidy         - Tidy dependencies"
-	@echo "  examples     - Build all examples"
-	@echo "  build-basic  - Build basic example"
-	@echo "  build-dynamic- Build dynamic example"
-	@echo "  build-server - Build server"
-	@echo "  run-basic    - Run basic example"
-	@echo "  run-dynamic  - Run dynamic example"
-	@echo "  run-server   - Run server"
-	@echo "  all          - Clean, build, test, lint, and build examples"
-	@echo "  help         - Show this help message"
+	@echo "  build                - Build the main binary"
+	@echo "  test                 - Run tests"
+	@echo "  test-cover           - Run tests with coverage"
+	@echo "  clean                - Clean build artifacts"
+	@echo "  lint                 - Run linter"
+	@echo "  fmt                  - Format code"
+	@echo "  verify               - Verify dependencies"
+	@echo "  tidy                 - Tidy dependencies"
+	@echo "  examples             - Build all examples"
+	@echo "  build-basic          - Build basic example"
+	@echo "  build-server         - Build server"
+	@echo "  build-resilient      - Build resilient example"
+	@echo "  build-dynamic-resilient - Build dynamic-resilient example"
+	@echo "  build-dynamic-only   - Build dynamic-only example"
+	@echo "  run-basic            - Run basic example"
+	@echo "  run-dynamic          - Run dynamic example"
+	@echo "  run-server           - Run server"
+	@echo "  run-resilient        - Run resilient example"
+	@echo "  run-dynamic-resilient - Run dynamic-resilient example"
+	@echo "  run-dynamic-only     - Run dynamic-only example"
+	@echo "  all                  - Clean, build, test, lint, and build examples"
+	@echo "  help                 - Show this help message"

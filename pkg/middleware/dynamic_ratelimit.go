@@ -24,12 +24,12 @@ import (
 )
 
 // DynamicRateLimitMiddleware enforces both request count and byte-based rate limiting with dynamic configs
-func DynamicRateLimitMiddleware(dl *limiter.DynamicLimiter) func(http.Handler) http.Handler {
+func DynamicRateLimitMiddleware(dl limiter.RateLimiter) func(http.Handler) http.Handler {
 	return DynamicRateLimitMiddlewareWithLogger(dl, nil)
 }
 
 // DynamicRateLimitMiddlewareWithLogger enforces rate limiting with a custom logger
-func DynamicRateLimitMiddlewareWithLogger(dl *limiter.DynamicLimiter, log Logger) func(http.Handler) http.Handler {
+func DynamicRateLimitMiddlewareWithLogger(dl limiter.RateLimiter, log Logger) func(http.Handler) http.Handler {
 	// Use a no-op logger if none provided
 	if log == nil {
 		log = NoOpLogger{}

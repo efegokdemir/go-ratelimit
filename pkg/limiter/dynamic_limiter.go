@@ -29,7 +29,7 @@ import (
 
 // DynamicLimiter implements a rate limiter with per-client configurations
 type DynamicLimiter struct {
-	rdb        *redis.Client
+	rdb        redis.Cmdable
 	prefix     string
 	cfgManager *config.ConfigManager
 	lua        *redis.Script
@@ -38,7 +38,7 @@ type DynamicLimiter struct {
 
 // NewDynamicLimiter creates a rate limiter with dynamic per-client configurations
 func NewDynamicLimiter(
-	rdb *redis.Client,
+	rdb redis.Cmdable,
 	prefix string,
 	defaultRequestLimit int,
 	defaultByteLimit int64,

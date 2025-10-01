@@ -34,7 +34,7 @@ type ClientConfig struct {
 
 // ConfigManager manages per-client rate limit configurations
 type ConfigManager struct {
-	rdb        *redis.Client
+	rdb        redis.Cmdable
 	prefix     string
 	defaultCfg ClientConfig
 	cache      map[string]ClientConfig
@@ -44,7 +44,7 @@ type ConfigManager struct {
 }
 
 // NewConfigManager creates a new configuration manager
-func NewConfigManager(rdb *redis.Client, prefix string, defaultCfg ClientConfig) *ConfigManager {
+func NewConfigManager(rdb redis.Cmdable, prefix string, defaultCfg ClientConfig) *ConfigManager {
 	return &ConfigManager{
 		rdb:        rdb,
 		prefix:     prefix,
@@ -154,4 +154,11 @@ func ExtractClientID(clientID string) string {
 		return ""
 	}
 	return clientID
+}
+
+// SetDefaultConfig updates the default configuration
+func (cm *ConfigManager) SetDefaultConfig(defaultCfg ClientConfig) {
+	cm.cacheMu.Lock()
+	defer cm.cacheMu.Unlock()
+	cm.defaultCfg = defaultCfg
 }

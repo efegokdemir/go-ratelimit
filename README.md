@@ -7,6 +7,7 @@ A comprehensive, Redis-based rate limiting library for Go HTTP services.
 - **Dual Rate Limiting**: Limits both request count and response size (bytes served)
 - **Sliding Window Algorithm**: More accurate than fixed windows, prevents traffic spikes at window boundaries
 - **Redis-Based**: Works across multiple server instances in a distributed environment
+- **Resilient Fallback**: Maintains rate limits in memory if Redis becomes unavailable
 - **Dynamic Per-Client Configuration**: Customize rate limits for each client at runtime
 - **RFC Compliant Headers**: Returns standard rate limit headers for client awareness
 - **Customizable Key Generation**: Limit by client ID, IP address, route, or any combination
@@ -225,16 +226,26 @@ curl -X DELETE -H "X-Admin-Key: my-admin-key" \
      http://localhost:8080/admin/config/client123
 ```
 
-### Advanced Admin API
+## Resilient Rate Limiting
 
-The library also provides advanced admin API endpoints through the `api.AdminHandler`:
+The library provides a resilient rate limiter that automatically falls back to in-memory rate limiting when Redis is unavailable:
 
-- `/admin/ratelimit/status` - Get system status and metrics
-- `/admin/ratelimit/tenant/{tenantID}` - Manage tenant-specific configurations
-- `/admin/ratelimit/client/{clientID}` - Manage client-specific configurations
-- `/admin/ratelimit/batch` - Batch configuration operations
+```go
+// Create a resilient rate limiter
+resilientLimiter := limiter.NewResilientLimiter(
+    rdb,                // Redis client
+    "rl",               // Key prefix
+    10,                 // Default request limit
+    1048576,            // Default byte limit (1MB)
+    time.Minute,        // Window duration
+    keyBuilderFunction, // Function to extract key from request
+)
 
-These endpoints support more sophisticated use cases including multi-tenancy and batch updates. See the [Simple Logger example](./examples/simple_logger/main.go) for usage.
+// Use it with middleware
+handler := middleware.DynamicRateLimitMiddleware(resilientLimiter)(nextHandler)
+```
+
+📖 **[Detailed Resilient Rate Limiting Guide](docs/RESILIENT_RATE_LIMITING.md)**
 
 ## Architecture
 
@@ -245,9 +256,11 @@ pkg/
 ├── ratelimit/
 │   └── ratelimit.go              # Main package API and service
 ├── limiter/
-│   ├── redis.go                  # Simple request count limiter
-│   ├── dual_limiter.go           # Combined request count and byte limiter
-│   └── dynamic_limiter.go        # Dynamic per-client configurable limiter
+│   ├── redis.go           # Simple request count limiter
+│   ├── dual_limiter.go    # Combined request count and byte limiter
+│   ├── dynamic_limiter.go # Dynamic per-client configurable limiter
+│   ├── memory.go          # In-memory rate limiter implementation
+│   └── resilient_limiter.go # Resilient limiter with Redis fallback
 ├── middleware/
 │   ├── ratelimit.go              # HTTP middleware for request count limiting
 │   ├── dual_ratelimit.go         # HTTP middleware for dual limiting
@@ -396,20 +409,9 @@ The system uses Redis sorted sets for sliding window rate limiting and hash stor
 
 See the [examples](./examples) directory for complete working examples:
 
-- [Header-Based Limiting](./examples/header_based_limiting/main.go) - Demonstrates various header-based rate limiting strategies including simple headers, multiple headers, fallbacks, and multi-tenant scenarios
-- [Simple Logger](./examples/simple_logger/main.go) - Complete server example with custom logger, admin API, and tenant-based rate limiting
-
-### Running Examples
-
-Make sure Redis is running on `localhost:6379`, then run any example with:
-
-```bash
-# Run header-based limiting example
-go run examples/header_based_limiting/main.go
-
-# Run simple logger example with admin API
-go run examples/simple_logger/main.go
-```
+- [Basic Example](./cmd/examples/basic/main.go) - Simple rate limiting setup
+- [Dynamic Example](./cmd/examples/dynamic/main.go) - Dynamic per-client configuration
+- [Resilient Example](./examples/resilient_limiter/main.go) - Resilient rate limiting with Redis fallback
 
 ## Requirements
 
