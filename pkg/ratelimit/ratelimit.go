@@ -1,3 +1,18 @@
+/*
+ * Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 // Package ratelimit provides a flexible and configurable rate limiting solution
 // for HTTP services based on Redis.
 package ratelimit
@@ -7,12 +22,12 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/redis/go-redis/v9"
 	"gitlab-master.nvidia.com/kratos-dataverse-observability/go-ratelimit/pkg/api"
 	"gitlab-master.nvidia.com/kratos-dataverse-observability/go-ratelimit/pkg/config"
 	"gitlab-master.nvidia.com/kratos-dataverse-observability/go-ratelimit/pkg/limiter"
 	"gitlab-master.nvidia.com/kratos-dataverse-observability/go-ratelimit/pkg/middleware"
 	"gitlab-master.nvidia.com/kratos-dataverse-observability/go-ratelimit/pkg/utils"
-	"github.com/redis/go-redis/v9"
 )
 
 // Options configures the rate limiter
@@ -208,14 +223,15 @@ func KeyByClientIDAndRoute(clientID string) func(*http.Request) string {
 }
 
 // KeyByHeader returns a key extraction function that uses a specific HTTP header
-// This is useful for rate limiting by API key, tenant ID, customer ID, collector ID, etc.
+// This is useful for rate limiting by API key, tenant ID, customer ID, custom fields, etc.
 //
 // Example:
-//   // Rate limit by API key
-//   options.KeyFunc = ratelimit.KeyByHeader("X-API-Key")
 //
-//   // Rate limit by collector ID (as used in logging-gateway)
-//   options.KeyFunc = ratelimit.KeyByHeader("collector-id")
+//	// Rate limit by API key
+//	options.KeyFunc = ratelimit.KeyByHeader("X-API-Key")
+//
+//	// Rate limit by custom field header
+//	options.KeyFunc = ratelimit.KeyByHeader("X-Custom-Field")
 func KeyByHeader(headerName string) func(*http.Request) string {
 	return utils.KeyByHeader(headerName)
 }
@@ -224,12 +240,13 @@ func KeyByHeader(headerName string) func(*http.Request) string {
 // This provides fine-grained control over header-based key extraction
 //
 // Example:
-//   options.KeyFunc = ratelimit.KeyByHeaderWithOptions(utils.HeaderKeyOptions{
-//       HeaderName: "X-Tenant-ID",
-//       Prefix: "tenant",
-//       DefaultValue: "default-tenant",
-//       Sanitizer: utils.AlphanumericSanitizer,
-//   })
+//
+//	options.KeyFunc = ratelimit.KeyByHeaderWithOptions(utils.HeaderKeyOptions{
+//	    HeaderName: "X-Tenant-ID",
+//	    Prefix: "tenant",
+//	    DefaultValue: "default-tenant",
+//	    Sanitizer: utils.AlphanumericSanitizer,
+//	})
 func KeyByHeaderWithOptions(opts utils.HeaderKeyOptions) func(*http.Request) string {
 	return utils.KeyByHeaderWithOptions(opts)
 }
@@ -238,8 +255,9 @@ func KeyByHeaderWithOptions(opts utils.HeaderKeyOptions) func(*http.Request) str
 // This is useful when you need composite keys
 //
 // Example:
-//   // Rate limit by tenant AND region
-//   options.KeyFunc = ratelimit.KeyByMultipleHeaders([]string{"X-Tenant-ID", "X-Region"}, ":")
+//
+//	// Rate limit by tenant AND region
+//	options.KeyFunc = ratelimit.KeyByMultipleHeaders([]string{"X-Tenant-ID", "X-Region"}, ":")
 func KeyByMultipleHeaders(headerNames []string, separator string) func(*http.Request) string {
 	return utils.KeyByMultipleHeaders(headerNames, separator)
 }
@@ -248,8 +266,9 @@ func KeyByMultipleHeaders(headerNames []string, separator string) func(*http.Req
 // This is useful when clients might send the same information in different headers
 //
 // Example:
-//   // Try X-API-Key first, then Authorization header
-//   options.KeyFunc = ratelimit.KeyByHeaderWithFallback([]string{"X-API-Key", "Authorization"})
+//
+//	// Try X-API-Key first, then Authorization header
+//	options.KeyFunc = ratelimit.KeyByHeaderWithFallback([]string{"X-API-Key", "Authorization"})
 func KeyByHeaderWithFallback(headerNames []string) func(*http.Request) string {
 	return utils.KeyByHeaderWithFallback(headerNames)
 }

@@ -10,7 +10,7 @@ A comprehensive, Redis-based rate limiting library for Go HTTP services.
 - **Dynamic Per-Client Configuration**: Customize rate limits for each client at runtime
 - **RFC Compliant Headers**: Returns standard rate limit headers for client awareness
 - **Customizable Key Generation**: Limit by client ID, IP address, route, or any combination
-- **Header-Based Rate Limiting**: Rate limit by any HTTP header (API key, tenant ID, collector ID, etc.)
+- **Header-Based Rate Limiting**: Rate limit by any HTTP header (API key, tenant ID, custom fields, etc.)
 - **Advanced Header Options**: Sanitizers, prefixes, fallbacks, and composite keys from multiple headers
 
 ## Installation
@@ -60,11 +60,24 @@ options := ratelimit.Options{
     ByteLimit:    5 * 1024 * 1024,  // 5MB per window
     Window:       time.Minute,      // 1 minute window
     KeyFunc:      ratelimit.KeyByClientIDAndRoute("client123"),
-    AdminKey:     "my-admin-key",
+    Logger:       myCustomLogger,   // Optional: custom logger for rate limit events
 }
 
 service := ratelimit.New(options)
 ```
+
+### Logger Interface
+
+You can provide a custom logger that implements the `middleware.Logger` interface:
+
+```go
+type Logger interface {
+    Info(msg string, keysAndValues ...interface{})
+    Error(msg string, keysAndValues ...interface{})
+}
+```
+
+If no logger is provided, the service uses a no-op logger by default.
 
 ## Key Functions
 
@@ -83,13 +96,15 @@ ratelimit.KeyByIP
 // Limit by HTTP header (NEW)
 ratelimit.KeyByHeader("X-API-Key")
 ratelimit.KeyByHeader("X-Tenant-ID")
-ratelimit.KeyByHeader("collector-id")
+ratelimit.KeyByHeader("X-Custom-Field")
 
 // Advanced header options (NEW)
 ratelimit.KeyByHeaderWithOptions(utils.HeaderKeyOptions{
-    HeaderName: "X-Tenant-ID",
-    Prefix:     "tenant",
-    Sanitizer:  utils.AlphanumericSanitizer,
+    HeaderName:    "X-Tenant-ID",
+    Prefix:        "tenant",
+    Sanitizer:     utils.AlphanumericSanitizer,
+    DefaultValue:  "default-tenant",
+    CaseSensitive: false,
 })
 
 // Multiple headers composite key (NEW)
@@ -102,6 +117,21 @@ ratelimit.KeyByHeaderWithFallback([]string{"X-API-Key", "Authorization"})
 myKeyFunc := func(r *http.Request) string {
     return "custom:" + r.URL.Path
 }
+```
+
+### Built-in Sanitizers
+
+The library provides several sanitizer functions for cleaning header values:
+
+```go
+// Removes non-alphanumeric characters
+utils.AlphanumericSanitizer
+
+// Validates and normalizes UUIDs
+utils.UUIDSanitizer
+
+// Truncates strings to a maximum length
+utils.MaxLengthSanitizer(100)
 ```
 
 📖 **[Detailed Header-Based Rate Limiting Guide](docs/HEADER_BASED_RATE_LIMITING.md)**
@@ -128,6 +158,24 @@ Available matchers:
 - `MatchPathRegex(pattern)` - Matches paths using a regular expression
 - `MatchAny(matchers...)` - Matches if any matcher matches
 - `MatchNone(matchers...)` - Matches if no matcher matches
+
+## Service API
+
+The `Service` struct provides the following methods:
+
+```go
+// Middleware application
+service.Middleware()                        // Apply rate limiting to all requests
+service.SelectiveMiddleware(matcher)        // Apply rate limiting to specific paths
+
+// Configuration management
+service.SetClientConfig(clientID, reqLimit, byteLimit, windowSecs)  // Set client-specific limits
+service.ResetClientConfig(clientID)                                   // Reset to defaults
+service.RegisterConfigAPI(mux)                                        // Register config endpoints
+
+// Access internals
+service.GetLimiter()                        // Get underlying DynamicLimiter
+```
 
 ## Dynamic Client Configuration
 
@@ -177,6 +225,17 @@ curl -X DELETE -H "X-Admin-Key: my-admin-key" \
      http://localhost:8080/admin/config/client123
 ```
 
+### Advanced Admin API
+
+The library also provides advanced admin API endpoints through the `api.AdminHandler`:
+
+- `/admin/ratelimit/status` - Get system status and metrics
+- `/admin/ratelimit/tenant/{tenantID}` - Manage tenant-specific configurations
+- `/admin/ratelimit/client/{clientID}` - Manage client-specific configurations
+- `/admin/ratelimit/batch` - Batch configuration operations
+
+These endpoints support more sophisticated use cases including multi-tenancy and batch updates. See the [Simple Logger example](./examples/simple_logger/main.go) for usage.
+
 ## Architecture
 
 The library consists of several modular components:
@@ -184,21 +243,29 @@ The library consists of several modular components:
 ```
 pkg/
 ├── ratelimit/
-│   └── ratelimit.go       # Main package API
+│   └── ratelimit.go              # Main package API and service
 ├── limiter/
-│   ├── redis.go           # Simple request count limiter
-│   ├── dual_limiter.go    # Combined request count and byte limiter
-│   └── dynamic_limiter.go # Dynamic per-client configurable limiter
+│   ├── redis.go                  # Simple request count limiter
+│   ├── dual_limiter.go           # Combined request count and byte limiter
+│   └── dynamic_limiter.go        # Dynamic per-client configurable limiter
 ├── middleware/
-│   ├── ratelimit.go       # HTTP middleware for request count limiting
-│   ├── dual_ratelimit.go  # HTTP middleware for dual limiting
-│   └── bytecounter.go     # Response writer wrapper to count bytes
+│   ├── ratelimit.go              # HTTP middleware for request count limiting
+│   ├── dual_ratelimit.go         # HTTP middleware for dual limiting
+│   ├── dynamic_ratelimit.go      # Dynamic middleware with per-client configs
+│   ├── selective_ratelimit.go    # Selective path-based rate limiting
+│   ├── bytecounter.go            # Response writer wrapper to count bytes
+│   └── logger.go                 # Logger interface and no-op implementation
 ├── config/
-│   └── manager.go         # Per-client configuration manager
+│   ├── config.go                 # Configuration structures
+│   └── manager.go                # Per-client configuration manager
 ├── api/
-│   └── config_handler.go  # API endpoints for managing client configs
-└── utils/
-    └── request.go         # Helper functions for key generation
+│   ├── config_handler.go         # Legacy config API endpoints
+│   └── admin_handler.go          # Advanced admin API with batch operations
+├── utils/
+│   ├── request.go                # Helper functions for key generation
+│   └── header_keys.go            # Header-based key extraction and sanitizers
+└── logger/
+    └── logger.go                 # Structured logging with Zap/OpenTelemetry
 ```
 
 ### Flow Diagram
@@ -206,74 +273,143 @@ pkg/
 ```mermaid
 flowchart TD
     subgraph Client
-        A[HTTP Request]
+        A[HTTP Request with Headers]
     end
     
     subgraph "Rate Limiting System"
-        subgraph "HTTP Server"
-            B[Incoming Request]
-            Z[Response to Client]
+        subgraph "Service Layer - pkg/ratelimit"
+            S1[Service.Middleware<br/>or SelectiveMiddleware]
         end
         
-        subgraph "DynamicRateLimitMiddleware"
-            C{Check Request Count Limit}
-            D[Set Rate Limit Headers]
-            E{Request Count Exceeded?}
-            F[Return 429 Too Many Requests]
-            G[Create ByteCounterWriter]
-            H[Call Next Handler]
-            I[Record Bytes Transferred]
+        subgraph "Middleware Layer - pkg/middleware"
+            M1[DynamicRateLimitMiddleware]
+            M2[Extract Key from Request<br/>using KeyFunc]
+            M3[Path Matching<br/>Selective]
+            M4{Request Count<br/>Limit Check}
+            M5[Set Rate Limit Headers<br/>X-RateLimit-*]
+            M6{Rate Limit<br/>Exceeded?}
+            M7[Return 429<br/>Too Many Requests]
+            M8[Wrap Response<br/>ByteCounterWriter]
+            M9[Call Next Handler]
+            M10[Log Events]
         end
         
-        subgraph "DynamicLimiter"
-            J[AllowRequest]
-            K[RecordBytes]
-            L[Get Client Configuration]
-            
-            subgraph "Redis Operations"
-                M[Execute Lua Script for Request Count]
-                N[Execute Lua Script for Byte Count]
-            end
+        subgraph "Limiter Layer - pkg/limiter"
+            L1[DynamicLimiter]
+            L2[Get Client Config<br/>from ConfigManager]
+            L3[AllowRequest<br/>Check Request Count]
+            L4[RecordBytes<br/>Track Response Size]
+        end
+        
+        subgraph "Utils Layer - pkg/utils"
+            U1[KeyByIP<br/>KeyByHeader<br/>KeyByMultipleHeaders]
+            U2[Sanitizers<br/>Alphanumeric, UUID, etc.]
+        end
+        
+        subgraph "Config Layer - pkg/config"
+            C1[ClientConfig<br/>Manager]
+        end
+        
+        subgraph "API Layer - pkg/api"
+            API1[ConfigHandler<br/>Legacy API]
+            API2[AdminHandler<br/>Advanced API]
         end
         
         subgraph "Redis Database"
-            O[(Request Count ZSET)]
-            P[(Byte Count ZSET)]
-            Q[(Client Configurations)]
+            R1[(Request Count<br/>Sorted Sets)]
+            R2[(Byte Count<br/>Sorted Sets)]
+            R3[(Client Configs<br/>Hash)]
+        end
+        
+        subgraph "Application Handler"
+            H1[Your HTTP Handler]
+            H2[Generate Response]
         end
     end
     
-    A --> B
-    B --> C
-    C --> L
-    L --> Q
-    L --> J
-    J --> M
-    M --> O
-    O --> J
-    J --> C
+    %% Main request flow
+    A --> S1
+    S1 --> M1
+    M1 --> M3
+    M3 --> M2
+    M2 --> U1
+    U1 --> U2
+    U2 --> M4
     
-    C --> D
-    D --> E
-    E -->|Yes| F
-    F --> Z
+    M4 --> L1
+    L1 --> L2
+    L2 --> C1
+    C1 --> R3
+    C1 --> L3
+    L3 --> R1
+    L3 --> M5
     
-    E -->|No| G
-    G --> H
-    H --> Z
+    M5 --> M6
+    M6 -->|Yes| M7
+    M7 --> M10
+    M10 --> A
     
-    Z --> I
-    I --> K
-    K --> N
-    N --> P
+    M6 -->|No| M8
+    M8 --> M9
+    M9 --> H1
+    H1 --> H2
+    H2 --> M8
+    
+    %% After response
+    M8 --> L4
+    L4 --> R2
+    L4 --> M10
+    M10 --> A
+    
+    %% Admin API flows
+    API1 -.->|Manage Configs| C1
+    API2 -.->|Manage Configs<br/>Batch Operations| C1
+    
+    style S1 fill:#e1f5ff
+    style L1 fill:#fff4e1
+    style C1 fill:#f0e1ff
+    style R1 fill:#ffe1e1
+    style R2 fill:#ffe1e1
+    style R3 fill:#ffe1e1
+    style M7 fill:#ffcccc
 ```
+
+**Flow Explanation:**
+
+1. **Request arrives** with headers (API key, tenant ID, etc.)
+2. **Service layer** routes to appropriate middleware (all requests or selective)
+3. **Middleware** extracts rate limit key using configurable KeyFunc (IP, headers, composite)
+4. **Utils layer** applies sanitizers and generates clean rate limit keys
+5. **Limiter** checks client-specific config from Redis, then validates request count
+6. **Rate limit headers** are set on response (X-RateLimit-Limit, X-RateLimit-Remaining, etc.)
+7. **Decision point**: 
+   - If limit exceeded → Return 429 with retry information
+   - If allowed → Wrap response writer to count bytes
+8. **Application handler** processes request and generates response
+9. **After response**, byte count is recorded to Redis for bandwidth limiting
+10. **Logging** captures all rate limit events
+11. **Admin APIs** (shown with dashed lines) allow runtime configuration updates
+
+The system uses Redis sorted sets for sliding window rate limiting and hash storage for per-client configurations.
 
 ## Examples
 
-See the [cmd/examples](./cmd/examples) directory for complete working examples:
+See the [examples](./examples) directory for complete working examples:
 
-- [Basic Example](./cmd/examples/basic/main.go) - Simple rate limiting setup
-- [Dynamic Example](./cmd/examples/dynamic/main.go) - Dynamic per-client configuration
+- [Header-Based Limiting](./examples/header_based_limiting/main.go) - Demonstrates various header-based rate limiting strategies including simple headers, multiple headers, fallbacks, and multi-tenant scenarios
+- [Simple Logger](./examples/simple_logger/main.go) - Complete server example with custom logger, admin API, and tenant-based rate limiting
+
+### Running Examples
+
+Make sure Redis is running on `localhost:6379`, then run any example with:
+
+```bash
+# Run header-based limiting example
+go run examples/header_based_limiting/main.go
+
+# Run simple logger example with admin API
+go run examples/simple_logger/main.go
+```
 
 ## Requirements
 
@@ -300,18 +436,6 @@ make fmt
 # Run linter
 make lint
 
-# Build all examples
-make examples
-
-# Run the server example
-make run-server
-
-# Run the basic example
-make run-basic
-
-# Run the dynamic example
-make run-dynamic
-
 # Show all available commands
 make help
 ```
@@ -329,10 +453,17 @@ make test-cover
 ```
 
 Tests cover:
-- Key generation and request utilities
-- Path matching for selective rate limiting
-- Byte counting middleware
-- Core rate limiting functionality
+- **Redis-based limiters**: Request count, byte count, and dual limiting
+- **Dynamic configuration**: Per-client configuration management
+- **Key generation**: IP-based, client ID-based, header-based, and composite keys
+- **Header sanitizers**: Alphanumeric, UUID, and max-length sanitizers
+- **Path matching**: Selective rate limiting with various matchers
+- **Byte counting**: Response size tracking
+- **Middleware**: Integration tests for all middleware types
+- **Admin API**: Configuration API endpoints
+- **Concurrent operations**: Thread-safe operations under load
+
+The test suite includes both unit tests and integration tests with Redis.
 
 ## License
 
