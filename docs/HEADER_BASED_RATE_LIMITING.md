@@ -17,7 +17,7 @@ Header-based rate limiting allows you to control access to your API based on val
 - **Multi-tenant isolation**: Different limits per tenant
 - **API key management**: Control usage per API key
 - **Customer tier differentiation**: Different limits for different subscription levels
-- **Service identification**: Rate limit by service or collector ID
+- **Service identification**: Rate limit by service or custom fields
 
 ## Basic Usage
 
@@ -58,8 +58,8 @@ handler := service.Middleware()(yourMux)
 // Rate limit by tenant ID
 KeyFunc: ratelimit.KeyByHeader("X-Tenant-ID")
 
-// Rate limit by collector ID (logging systems)
-KeyFunc: ratelimit.KeyByHeader("collector-id")
+// Rate limit by custom field
+KeyFunc: ratelimit.KeyByHeader("X-Custom-Field")
 
 // Rate limit by customer ID
 KeyFunc: ratelimit.KeyByHeader("X-Customer-ID")
@@ -222,20 +222,20 @@ options := ratelimit.Options{
 }
 ```
 
-### 4. Logging Infrastructure (collector-based)
+### 4. Logging Infrastructure (custom field-based)
 
 ```go
-// Rate limit log ingestion by collector
+// Rate limit log ingestion by custom field
 options := ratelimit.Options{
     Redis:        rdb,
     Prefix:       "log-ingestion",
     RequestLimit: 0,                    // No request limit
-    ByteLimit:    600 * 1024 * 1024,    // 600 MB/s per collector
+    ByteLimit:    600 * 1024 * 1024,    // 600 MB/s per custom field
     Window:       time.Second,
     KeyFunc: ratelimit.KeyByHeaderWithOptions(utils.HeaderKeyOptions{
-        HeaderName:   "collector-id",
-        Prefix:       "collector",
-        DefaultValue: "unknown-collector",
+        HeaderName:   "X-Custom-Field",
+        Prefix:       "custom",
+        DefaultValue: "unknown-field",
         Sanitizer:    utils.AlphanumericSanitizer,
     }),
 }
@@ -284,7 +284,7 @@ Prefixes help organize keys in Redis and prevent collisions:
 // Good: Clear namespace
 Prefix: "tenant"        // Keys: "tenant:12345"
 Prefix: "api-v2"        // Keys: "api-v2:key123"
-Prefix: "collector"     // Keys: "collector:web-01"
+Prefix: "custom"        // Keys: "custom:field-01"
 
 // Bad: No context
 Prefix: ""              // Keys: "12345" (unclear)
