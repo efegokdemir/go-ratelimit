@@ -29,7 +29,7 @@ import (
 )
 
 func TestRedisLimiter_NewRedisLimiter(t *testing.T) {
-	mockRedis := NewMockRedisClient()
+	mockRedis := NewRedisMockClient()
 	rdb := redis.NewClient(&redis.Options{})
 
 	keyBuilder := func(r *http.Request) string {
@@ -109,7 +109,7 @@ func TestRedisLimiter_Allow_BasicRateLimiting(t *testing.T) {
 }
 
 func TestRedisLimiter_Allow_WithError(t *testing.T) {
-	mockRedis := NewMockRedisClient()
+	mockRedis := NewRedisMockClient()
 	rdb := redis.NewClient(&redis.Options{})
 
 	keyBuilder := func(r *http.Request) string {

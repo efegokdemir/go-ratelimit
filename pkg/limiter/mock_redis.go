@@ -27,8 +27,8 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// MockRedisClient implements a mock Redis client for testing
-type MockRedisClient struct {
+// RedisMockClient implements a mock Redis client for testing
+type RedisMockClient struct {
 	mu       sync.RWMutex
 	data     map[string]interface{}
 	zsets    map[string][]zsetEntry
@@ -42,9 +42,9 @@ type zsetEntry struct {
 	score  float64
 }
 
-// NewMockRedisClient creates a new mock Redis client
-func NewMockRedisClient() *MockRedisClient {
-	return &MockRedisClient{
+// NewRedisMockClient creates a new mock Redis client
+func NewRedisMockClient() *RedisMockClient {
+	return &RedisMockClient{
 		data:    make(map[string]interface{}),
 		zsets:   make(map[string][]zsetEntry),
 		ttls:    make(map[string]time.Time),
@@ -53,7 +53,7 @@ func NewMockRedisClient() *MockRedisClient {
 }
 
 // Get simulates Redis GET command
-func (m *MockRedisClient) Get(ctx context.Context, key string) *redis.StringCmd {
+func (m *RedisMockClient) Get(ctx context.Context, key string) *redis.StringCmd {
 	cmd := redis.NewStringCmd(ctx)
 
 	m.mu.RLock()
@@ -78,7 +78,7 @@ func (m *MockRedisClient) Get(ctx context.Context, key string) *redis.StringCmd 
 }
 
 // Set simulates Redis SET command
-func (m *MockRedisClient) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) *redis.StatusCmd {
+func (m *RedisMockClient) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) *redis.StatusCmd {
 	cmd := redis.NewStatusCmd(ctx)
 
 	m.mu.Lock()
@@ -99,7 +99,7 @@ func (m *MockRedisClient) Set(ctx context.Context, key string, value interface{}
 }
 
 // Del simulates Redis DEL command
-func (m *MockRedisClient) Del(ctx context.Context, keys ...string) *redis.IntCmd {
+func (m *RedisMockClient) Del(ctx context.Context, keys ...string) *redis.IntCmd {
 	cmd := redis.NewIntCmd(ctx)
 
 	m.mu.Lock()
@@ -128,7 +128,7 @@ func (m *MockRedisClient) Del(ctx context.Context, keys ...string) *redis.IntCmd
 }
 
 // ZAdd simulates Redis ZADD command
-func (m *MockRedisClient) ZAdd(ctx context.Context, key string, members ...redis.Z) *redis.IntCmd {
+func (m *RedisMockClient) ZAdd(ctx context.Context, key string, members ...redis.Z) *redis.IntCmd {
 	cmd := redis.NewIntCmd(ctx)
 
 	m.mu.Lock()
@@ -167,7 +167,7 @@ func (m *MockRedisClient) ZAdd(ctx context.Context, key string, members ...redis
 }
 
 // ZCard simulates Redis ZCARD command
-func (m *MockRedisClient) ZCard(ctx context.Context, key string) *redis.IntCmd {
+func (m *RedisMockClient) ZCard(ctx context.Context, key string) *redis.IntCmd {
 	cmd := redis.NewIntCmd(ctx)
 
 	m.mu.RLock()
@@ -188,7 +188,7 @@ func (m *MockRedisClient) ZCard(ctx context.Context, key string) *redis.IntCmd {
 }
 
 // ZRange simulates Redis ZRANGE command
-func (m *MockRedisClient) ZRange(ctx context.Context, key string, start, stop int64) *redis.StringSliceCmd {
+func (m *RedisMockClient) ZRange(ctx context.Context, key string, start, stop int64) *redis.StringSliceCmd {
 	cmd := redis.NewStringSliceCmd(ctx)
 
 	m.mu.RLock()
@@ -231,7 +231,7 @@ func (m *MockRedisClient) ZRange(ctx context.Context, key string, start, stop in
 }
 
 // ZRemRangeByScore simulates Redis ZREMRANGEBYSCORE command
-func (m *MockRedisClient) ZRemRangeByScore(ctx context.Context, key string, min, max string) *redis.IntCmd {
+func (m *RedisMockClient) ZRemRangeByScore(ctx context.Context, key string, min, max string) *redis.IntCmd {
 	cmd := redis.NewIntCmd(ctx)
 
 	m.mu.Lock()
@@ -267,7 +267,7 @@ func (m *MockRedisClient) ZRemRangeByScore(ctx context.Context, key string, min,
 }
 
 // PExpire simulates Redis PEXPIRE command
-func (m *MockRedisClient) PExpire(ctx context.Context, key string, expiration time.Duration) *redis.BoolCmd {
+func (m *RedisMockClient) PExpire(ctx context.Context, key string, expiration time.Duration) *redis.BoolCmd {
 	cmd := redis.NewBoolCmd(ctx)
 
 	m.mu.Lock()
@@ -292,7 +292,7 @@ func (m *MockRedisClient) PExpire(ctx context.Context, key string, expiration ti
 }
 
 // Time simulates Redis TIME command
-func (m *MockRedisClient) Time(ctx context.Context) *redis.TimeCmd {
+func (m *RedisMockClient) Time(ctx context.Context) *redis.TimeCmd {
 	cmd := redis.NewTimeCmd(ctx)
 
 	if m.failNext {
@@ -305,7 +305,7 @@ func (m *MockRedisClient) Time(ctx context.Context) *redis.TimeCmd {
 }
 
 // SimulateFailure sets the client to fail on the next operation
-func (m *MockRedisClient) SimulateFailure(fail bool) {
+func (m *RedisMockClient) SimulateFailure(fail bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.failNext = fail
@@ -359,21 +359,21 @@ func (m *MockLuaScript) Reset() {
 	m.remaining = int64(m.allowCount)
 }
 
-// MockConfigManager provides a mock implementation of config manager
-type MockConfigManager struct {
+// ConfigMockManager provides a mock implementation of config manager
+type ConfigMockManager struct {
 	mu      sync.RWMutex
 	configs map[string]json.RawMessage
 }
 
-// NewMockConfigManager creates a new mock config manager
-func NewMockConfigManager() *MockConfigManager {
-	return &MockConfigManager{
+// NewConfigMockManager creates a new mock config manager
+func NewConfigMockManager() *ConfigMockManager {
+	return &ConfigMockManager{
 		configs: make(map[string]json.RawMessage),
 	}
 }
 
 // GetConfig retrieves a config for testing
-func (m *MockConfigManager) GetConfig(clientID string) (json.RawMessage, error) {
+func (m *ConfigMockManager) GetConfig(clientID string) (json.RawMessage, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -391,7 +391,7 @@ func (m *MockConfigManager) GetConfig(clientID string) (json.RawMessage, error) 
 }
 
 // SetConfig sets a config for testing
-func (m *MockConfigManager) SetConfig(clientID string, cfg json.RawMessage) error {
+func (m *ConfigMockManager) SetConfig(clientID string, cfg json.RawMessage) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
