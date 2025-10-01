@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"bufio"
+	"net"
 	"net/http"
 )
 
@@ -40,7 +42,7 @@ func (bcw *ByteCounterWriter) Flush() {
 }
 
 // Hijack implements http.Hijacker if the underlying ResponseWriter supports it
-func (bcw *ByteCounterWriter) Hijack() (interface{}, interface{}, error) {
+func (bcw *ByteCounterWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	if hijacker, ok := bcw.ResponseWriter.(http.Hijacker); ok {
 		return hijacker.Hijack()
 	}

@@ -3,6 +3,7 @@ package middleware
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
 	"gitlab-master.nvidia.com/kratos-dataverse-observability/go-ratelimit/pkg/limiter"
 )
@@ -95,10 +96,38 @@ func DynamicRateLimitMiddlewareWithLogger(dl *limiter.DynamicLimiter, log Logger
 // This is a placeholder implementation. In a real application, this would extract
 // the client ID from the authenticated context after proper authentication and authorization.
 func extractClientID(r *http.Request) string {
-	// For demo purposes, we'll use a query parameter
-	clientID := r.URL.Query().Get("client_id")
-	if clientID != "" {
+	// Check X-Client-ID header first (highest priority)
+	if clientID := r.Header.Get("X-Client-ID"); clientID != "" {
 		return clientID
 	}
+
+	// Check X-API-Key header
+	if apiKey := r.Header.Get("X-API-Key"); apiKey != "" {
+		return apiKey
+	}
+
+	// Check query parameter
+	if clientID := r.URL.Query().Get("client_id"); clientID != "" {
+		return clientID
+	}
+
+	// Check X-Forwarded-For header
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		// Take the first IP in the chain
+		if idx := strings.Index(xff, ","); idx != -1 {
+			return strings.TrimSpace(xff[:idx])
+		}
+		return strings.TrimSpace(xff)
+	}
+
+	// Fall back to remote address
+	if r.RemoteAddr != "" {
+		// Extract just the IP part (remove port)
+		if idx := strings.LastIndex(r.RemoteAddr, ":"); idx != -1 {
+			return r.RemoteAddr[:idx]
+		}
+		return r.RemoteAddr
+	}
+
 	return ""
 }
