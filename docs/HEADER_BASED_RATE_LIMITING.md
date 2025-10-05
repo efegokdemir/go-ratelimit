@@ -210,7 +210,7 @@ options := ratelimit.Options{
 // Rate limit by calling service
 options := ratelimit.Options{
     Redis:        rdb,
-    Prefix:       "internal-api",
+    Prefix:       "api-gateway",
     RequestLimit: 10000,
     ByteLimit:    100 * 1024 * 1024,
     Window:       time.Minute,
