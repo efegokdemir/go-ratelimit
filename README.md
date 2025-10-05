@@ -1,6 +1,12 @@
-# Go Rate Limiting Library
+# go-ratelimit - Redis-based Rate Limiting for Go
 
-A comprehensive, Redis-based rate limiting library for Go HTTP services.
+[![Build Status](https://gitlab-master.nvidia.com/kratos-dataverse-observability/go-ratelimit/badges/main/pipeline.svg)](https://gitlab-master.nvidia.com/kratos-dataverse-observability/go-ratelimit/pipelines)
+
+NVIDIA® go-ratelimit is a comprehensive, Redis-based rate limiting library for Go HTTP services. It provides high-performance, distributed rate limiting with support for both request count and bandwidth (bytes served) limits, making it ideal for protecting APIs and managing resource consumption in cloud-native applications.
+
+> **Note**: This project is being prepared for open source release. The import paths will change from `gitlab-master.nvidia.com/kratos-dataverse-observability/go-ratelimit` to `github.com/NVIDIA/go-ratelimit` once the project is officially released on GitHub.
+
+For the latest stable version ensure you are on the `main` branch.
 
 ## Features
 
@@ -413,10 +419,21 @@ See the [examples](./examples) directory for complete working examples:
 - [Dynamic Example](./cmd/examples/dynamic/main.go) - Dynamic per-client configuration
 - [Resilient Example](./examples/resilient_limiter/main.go) - Resilient rate limiting with Redis fallback
 
-## Requirements
+## System Requirements
 
-- Go 1.18 or higher
-- Redis 5.0 or higher
+### Go requirements
+
+* Go >= 1.21
+
+### Redis requirements
+
+* Redis >= 5.0
+
+### OS requirements
+
+* Linux, macOS, and Windows are supported
+  * x86_64 (64-bit)
+  * aarch64 (64-bit)
 
 ## Development
 
@@ -467,6 +484,20 @@ Tests cover:
 
 The test suite includes both unit tests and integration tests with Redis.
 
+## Resources
+
+- [Documentation](docs/) - Additional documentation and guides
+- [Examples](examples/) - Working examples for various use cases
+- [Setup Guide](SETUP_GUIDE.md) - Detailed setup instructions
+- [Header-Based Rate Limiting Guide](docs/HEADER_BASED_RATE_LIMITING.md) - Advanced header-based limiting
+- [Resilient Rate Limiting Guide](docs/RESILIENT_RATE_LIMITING.md) - Building resilient systems
+
+## Contributing
+
+Review the [CONTRIBUTING.md](CONTRIBUTING.md) file for information on how to contribute code and issues to the project.
+
 ## License
 
-Nvidia
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+
+Copyright 2025 NVIDIA Corporation
