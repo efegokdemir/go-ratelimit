@@ -44,12 +44,15 @@ func DynamicRateLimitMiddlewareWithLogger(dl limiter.RateLimiter, log Logger) fu
 				return
 			}
 
+			// Get the actual rate limit key that was used
+			rateLimitKey := dl.GetLastKey(r)
+			
 			// Get client ID for retrieving config
 			clientID := extractClientID(r)
 			cfg, _ := dl.GetClientConfig(r.Context(), clientID)
 
-			// Set request count rate limit headers
-			log.Info(fmt.Sprintf("Setting rate limit headers for client %s (limit=%d, allowed=%v, remaining=%d)", clientID, cfg.RequestLimit, allowed, remaining))
+			// Set request count rate limit headers - use the actual rate limit key for logging
+			log.Info(fmt.Sprintf("Setting rate limit headers for client %s (limit=%d, allowed=%v, remaining=%d)", rateLimitKey, cfg.RequestLimit, allowed, remaining))
 			if cfg.RequestLimit < 0 {
 				// Request limiting is disabled
 				w.Header().Set("RateLimit-Request-Limit", "unlimited")
@@ -73,7 +76,7 @@ func DynamicRateLimitMiddlewareWithLogger(dl limiter.RateLimiter, log Logger) fu
 			w.Header().Set("RateLimit-Bytes-Window", fmt.Sprintf("%d", cfg.WindowSecs))
 
 			if !allowed {
-				log.Info(fmt.Sprintf("Request rate limit exceeded for client %s", clientID))
+				log.Info(fmt.Sprintf("Request rate limit exceeded for client %s", rateLimitKey))
 				w.Header().Set("Retry-After", fmt.Sprintf("%d", reset))
 				http.Error(w, "request rate limit exceeded", http.StatusTooManyRequests)
 				return
@@ -87,7 +90,7 @@ func DynamicRateLimitMiddlewareWithLogger(dl limiter.RateLimiter, log Logger) fu
 
 			// Only count successful responses
 			if bcw.StatusCode < 400 {
-				log.Info(fmt.Sprintf("Recording bytes used for client %s: %d bytes", clientID, bcw.BytesWritten))
+				log.Info(fmt.Sprintf("Recording bytes used for client %s: %d bytes", rateLimitKey, bcw.BytesWritten))
 
 				// Record bytes and check if byte limit would be exceeded
 				allowed, remaining, reset, err := dl.RecordBytes(r.Context(), r, bcw.BytesWritten)
@@ -98,7 +101,7 @@ func DynamicRateLimitMiddlewareWithLogger(dl limiter.RateLimiter, log Logger) fu
 				w.Header().Set("RateLimit-Bytes-Reset", fmt.Sprintf("%d", reset))
 
 				if !allowed && err == nil {
-					log.Error(fmt.Sprintf("Byte rate limit exceeded for client %s", clientID))
+					log.Error(fmt.Sprintf("Byte rate limit exceeded for client %s", rateLimitKey))
 					// Note: Response is already sent at this point, so we can't return 429
 					// This is logged for monitoring purposes
 				}

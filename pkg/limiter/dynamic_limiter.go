@@ -115,6 +115,11 @@ func (dl *DynamicLimiter) AllowRequest(ctx context.Context, r *http.Request) (bo
 	return allowed, remaining, reset, nil
 }
 
+// GetLastKey returns the last key used by this limiter
+func (dl *DynamicLimiter) GetLastKey(r *http.Request) string {
+	return dl.keyBuilder(r)
+}
+
 // RecordBytes records the bytes used for a request with client-specific config
 func (dl *DynamicLimiter) RecordBytes(ctx context.Context, r *http.Request, bytes int64) (bool, int64, int64, error) {
 	// Get the key for this request

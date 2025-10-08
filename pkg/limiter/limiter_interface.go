@@ -23,4 +23,7 @@ type RateLimiter interface {
 
 	// GetCurrentUsage returns the current byte usage for a client
 	GetCurrentUsage(ctx context.Context, r *http.Request) (int64, error)
+
+	// GetLastKey returns the key that would be used for this request
+	GetLastKey(r *http.Request) string
 }
