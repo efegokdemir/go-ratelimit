@@ -46,7 +46,7 @@ func DynamicRateLimitMiddlewareWithLogger(dl limiter.RateLimiter, log Logger) fu
 
 			// Get the actual rate limit key that was used
 			rateLimitKey := dl.GetLastKey(r)
-			
+
 			// Get client ID for retrieving config
 			clientID := extractClientID(r)
 			cfg, _ := dl.GetClientConfig(r.Context(), clientID)
@@ -90,10 +90,16 @@ func DynamicRateLimitMiddlewareWithLogger(dl limiter.RateLimiter, log Logger) fu
 
 			// Only count successful responses
 			if bcw.StatusCode < 400 {
-				log.Info(fmt.Sprintf("Recording bytes used for client %s: %d bytes", rateLimitKey, bcw.BytesWritten))
-
 				// Record bytes and check if byte limit would be exceeded
 				allowed, remaining, reset, err := dl.RecordBytes(r.Context(), r, bcw.BytesWritten)
+
+				// Log with actual remaining bytes from rate limiter
+				mbUsed := float64(bcw.BytesWritten) / (1024 * 1024)
+				mbRemaining := float64(remaining) / (1024 * 1024)
+				mbLimit := float64(cfg.ByteLimit) / (1024 * 1024)
+
+				log.Info(fmt.Sprintf("Recording bytes for client %s: %.3f MB used, %.3f MB remaining of %.3f MB/s limit",
+					rateLimitKey, mbUsed, mbRemaining, mbLimit))
 
 				// Set byte rate limit headers
 				w.Header().Set("RateLimit-Bytes-Limit", fmt.Sprintf("%d", cfg.ByteLimit))

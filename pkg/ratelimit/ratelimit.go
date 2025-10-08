@@ -141,6 +141,11 @@ func (s *Service) Middleware() func(http.Handler) http.Handler {
 	return s.middleware
 }
 
+// MiddlewareWithRequestSize returns middleware that can use actual request size instead of response size
+func (s *Service) MiddlewareWithRequestSize(requestSizeFunc middleware.RequestSizeFunc) func(http.Handler) http.Handler {
+	return middleware.DynamicRateLimitMiddlewareWithRequestSize(s.limiter, s.logger, requestSizeFunc)
+}
+
 // SelectiveMiddleware returns a middleware that only applies rate limiting to paths matching the criteria
 func (s *Service) SelectiveMiddleware(matcher middleware.PathMatcher) func(http.Handler) http.Handler {
 	return middleware.SelectiveRateLimitMiddleware(s.limiter, matcher)
