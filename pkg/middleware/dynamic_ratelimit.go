@@ -49,7 +49,7 @@ func DynamicRateLimitMiddlewareWithLogger(dl limiter.RateLimiter, log Logger) fu
 			cfg, _ := dl.GetClientConfig(r.Context(), clientID)
 
 			// Set request count rate limit headers
-			log.Info(fmt.Sprintf("Setting rate limit headers for client %s", clientID))
+			log.Info(fmt.Sprintf("Setting rate limit headers for client %s (limit=%d, allowed=%v, remaining=%d)", clientID, cfg.RequestLimit, allowed, remaining))
 			if cfg.RequestLimit < 0 {
 				// Request limiting is disabled
 				w.Header().Set("RateLimit-Request-Limit", "unlimited")
@@ -108,15 +108,32 @@ func DynamicRateLimitMiddlewareWithLogger(dl limiter.RateLimiter, log Logger) fu
 }
 
 // extractClientID extracts a client ID from the request for config lookup
-// This is a placeholder implementation. In a real application, this would extract
-// the client ID from the authenticated context after proper authentication and authorization.
+// Checks common headers used by various systems for tenant/client identification
 func extractClientID(r *http.Request) string {
 	// Check X-Client-ID header first (highest priority)
 	if clientID := r.Header.Get("X-Client-ID"); clientID != "" {
 		return clientID
 	}
 
-	// Check X-API-Key header
+	// Check X-Scope-OrgID header (Grafana Loki)
+	// Return value as-is - the KeyFunc will add the "tenant-" prefix
+	if orgID := r.Header.Get("X-Scope-OrgID"); orgID != "" {
+		return orgID
+	}
+
+	// Check THANOS-TENANT header (Thanos)
+	// Return value as-is - the KeyFunc will add the "tenant-" prefix
+	if thanosTenant := r.Header.Get("THANOS-TENANT"); thanosTenant != "" {
+		return thanosTenant
+	}
+
+	// Check X-Tenant-ID header (generic multi-tenant systems)
+	// Return value as-is - the KeyFunc will add the "tenant-" prefix
+	if tenantID := r.Header.Get("X-Tenant-ID"); tenantID != "" {
+		return tenantID
+	}
+
+	// Check X-API-Key header (API key based systems)
 	if apiKey := r.Header.Get("X-API-Key"); apiKey != "" {
 		return apiKey
 	}
@@ -126,7 +143,7 @@ func extractClientID(r *http.Request) string {
 		return clientID
 	}
 
-	// Check X-Forwarded-For header
+	// Check X-Forwarded-For header (IP-based fallback)
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
 		// Take the first IP in the chain
 		if idx := strings.Index(xff, ","); idx != -1 {
