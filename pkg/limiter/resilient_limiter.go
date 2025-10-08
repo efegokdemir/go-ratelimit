@@ -221,3 +221,8 @@ func (rl *ResilientLimiter) GetCurrentUsage(ctx context.Context, r *http.Request
 
 	return rl.memoryLimiter.GetCurrentUsage(ctx, r)
 }
+
+// GetLastKey returns the key that would be used for this request
+func (rl *ResilientLimiter) GetLastKey(r *http.Request) string {
+	return rl.keyBuilder(r)
+}

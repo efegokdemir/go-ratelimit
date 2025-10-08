@@ -330,3 +330,8 @@ func (ml *MemoryLimiter) GetCurrentUsage(ctx context.Context, r *http.Request) (
 
 	return totalBytes, nil
 }
+
+// GetLastKey returns the key that would be used for this request
+func (ml *MemoryLimiter) GetLastKey(r *http.Request) string {
+	return ml.keyBuilder(r)
+}
