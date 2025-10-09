@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-.PHONY: build test clean lint examples run-basic run-dynamic run-server run-resilient run-dynamic-resilient run-dynamic-only
+.PHONY: build test clean lint examples run-basic run-dynamic run-server run-resilient run-dynamic-resilient run-dynamic-only build-grpc-server run-grpc-server
 
 # Variables
 GO=go
@@ -21,7 +21,7 @@ GOFLAGS=-trimpath
 BINARY_NAME=ratelimit
 BUILD_DIR=build
 EXAMPLES_DIR=cmd/examples
-SERVER_DIR=cmd/server
+SERVER_DIR=examples/server
 PKG_DIR=pkg
 RESILIENT_DIR=examples/resilient_limiter
 DYNAMIC_RESILIENT_DIR=examples/dynamic_resilient
@@ -134,8 +134,19 @@ run-dynamic-only:
 	@echo "Running dynamic-only example..."
 	$(GO) run $(DYNAMIC_ONLY_DIR)/main.go
 
+# Build gRPC server
+build-grpc-server:
+	@echo "Building gRPC server..."
+	@mkdir -p $(BUILD_DIR)
+	$(GO) build $(GOFLAGS) -o $(BUILD_DIR)/grpc-server main.go
+
+# Run gRPC server
+run-grpc-server:
+	@echo "Running gRPC server..."
+	$(GO) run main.go server
+
 # Default target
-all: clean build test lint examples
+all: clean build test lint examples build-grpc-server
 
 # Help
 help:
@@ -154,11 +165,13 @@ help:
 	@echo "  build-resilient      - Build resilient example"
 	@echo "  build-dynamic-resilient - Build dynamic-resilient example"
 	@echo "  build-dynamic-only   - Build dynamic-only example"
+	@echo "  build-grpc-server    - Build gRPC server"
 	@echo "  run-basic            - Run basic example"
 	@echo "  run-dynamic          - Run dynamic example"
 	@echo "  run-server           - Run server"
 	@echo "  run-resilient        - Run resilient example"
 	@echo "  run-dynamic-resilient - Run dynamic-resilient example"
 	@echo "  run-dynamic-only     - Run dynamic-only example"
+	@echo "  run-grpc-server      - Run gRPC server"
 	@echo "  all                  - Clean, build, test, lint, and build examples"
 	@echo "  help                 - Show this help message"
