@@ -12,7 +12,7 @@
 * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 * See the License for the specific language governing permissions and
 * limitations under the License.
- */
+*/
 
 package main
 
@@ -22,13 +22,13 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/redis/go-redis/v9"
 	"gitlab-master.nvidia.com/kratos-dataverse-observability/go-ratelimit/pkg/api"
 	"gitlab-master.nvidia.com/kratos-dataverse-observability/go-ratelimit/pkg/limiter"
 	logger "gitlab-master.nvidia.com/kratos-dataverse-observability/go-ratelimit/pkg/logger"
 	"gitlab-master.nvidia.com/kratos-dataverse-observability/go-ratelimit/pkg/middleware"
 	"gitlab-master.nvidia.com/kratos-dataverse-observability/go-ratelimit/pkg/ratelimit"
 	"gitlab-master.nvidia.com/kratos-dataverse-observability/go-ratelimit/pkg/utils"
+	"github.com/redis/go-redis/v9"
 )
 
 func main() {
