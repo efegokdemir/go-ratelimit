@@ -1,0 +1,33 @@
+# Minimal default configuration for go-ratelimit
+server:
+  grpc:
+    port: ":8080"
+  http:
+    port: ":8081"
+  admin:
+    port: ":8082"
+    enable_auth: false  # Disabled by default for easy testing
+
+ratelimit:
+  redis:
+    addr: "localhost:6379"
+    db: 0
+  
+  defaults:
+    request_limit: 100
+    byte_limit: 1048576  # 1MB
+    window_seconds: 60
+  
+  key_func: "ip"  # Default to IP-based rate limiting
+  key_config:
+    fallback_to_ip: true
+
+logging:
+  level: "info"
+  format: "console"
+
+metrics:
+  enabled: true
+
+health:
+  enabled: true

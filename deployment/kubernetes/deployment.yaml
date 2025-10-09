@@ -1,0 +1,157 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ratelimit-server
+  namespace: ratelimit
+  labels:
+    app: ratelimit-server
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: ratelimit-server
+  template:
+    metadata:
+      labels:
+        app: ratelimit-server
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8082"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: ratelimit-server
+        image: go-ratelimit:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: grpc
+          containerPort: 8080
+          protocol: TCP
+        - name: http
+          containerPort: 8081
+          protocol: TCP
+        - name: admin
+          containerPort: 8082
+          protocol: TCP
+        env:
+        - name: RATELIMIT_REDIS_ADDR
+          value: "redis-service:6379"
+        - name: RATELIMIT_REDIS_DB
+          value: "0"
+        - name: RATELIMIT_DEFAULT_REQUEST_LIMIT
+          value: "100"
+        - name: RATELIMIT_DEFAULT_BYTE_LIMIT
+          value: "1048576"
+        - name: RATELIMIT_WINDOW_SECONDS
+          value: "60"
+        - name: RATELIMIT_LOG_LEVEL
+          value: "info"
+        - name: RATELIMIT_ADMIN_ENABLED
+          value: "true"
+        - name: RATELIMIT_ADMIN_AUTH_ENABLED
+          value: "true"
+        - name: RATELIMIT_ADMIN_KEY
+          valueFrom:
+            secretKeyRef:
+              name: ratelimit-secrets
+              key: admin-key
+        volumeMounts:
+        - name: config
+          mountPath: /configs
+          readOnly: true
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: admin
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: admin
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+      volumes:
+      - name: config
+        configMap:
+          name: ratelimit-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ratelimit-service
+  namespace: ratelimit
+  labels:
+    app: ratelimit-server
+spec:
+  type: ClusterIP
+  ports:
+  - name: grpc
+    port: 8080
+    targetPort: grpc
+  - name: http
+    port: 8081
+    targetPort: http
+  - name: admin
+    port: 8082
+    targetPort: admin
+  selector:
+    app: ratelimit-server
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ratelimit-config
+  namespace: ratelimit
+data:
+  server.yaml: |
+    server:
+      grpc:
+        port: ":8080"
+      http:
+        port: ":8081"
+      admin:
+        port: ":8082"
+        enable_auth: true
+    
+    ratelimit:
+      redis:
+        addr: "redis-service:6379"
+        db: 0
+      defaults:
+        request_limit: 100
+        byte_limit: 1048576
+        window_seconds: 60
+      key_func: "header"
+      key_config:
+        header_name: "X-Client-ID"
+        fallback_to_ip: true
+        prefix: "client"
+        sanitizer: "alphanumeric"
+    
+    logging:
+      level: "info"
+      format: "json"
+    
+    metrics:
+      enabled: true
+    
+    health:
+      enabled: true
+      check_redis: true
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ratelimit-secrets
+  namespace: ratelimit
+type: Opaque
+stringData:
+  admin-key: "change-me-in-production"
