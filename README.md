@@ -22,25 +22,8 @@ For the latest stable version ensure you are on the `main` branch.
 
 ## Installation
 
-### As a Library
-
 ```bash
 go get gitlab-master.nvidia.com/kratos-dataverse-observability/go-ratelimit/pkg/ratelimit
-```
-
-### As a Standalone Server
-
-```bash
-# Using Docker
-docker run -p 8080:8080 -p 8081:8081 -p 8082:8082 \
-  -e RATELIMIT_REDIS_ADDR=redis:6379 \
-  go-ratelimit:latest
-
-# Using Docker Compose
-docker-compose up -d
-
-# Using Kubernetes
-kubectl apply -f deployment/kubernetes/
 ```
 
 ## Quick Start
@@ -451,80 +434,6 @@ See the [examples](./examples) directory for complete working examples:
 * Linux, macOS, and Windows are supported
   * x86_64 (64-bit)
   * aarch64 (64-bit)
-
-## Server Deployment
-
-### Running as a Server
-
-When deploying `go-ratelimit` as a standalone server:
-
-#### Configuration
-
-The server can be configured via:
-1. YAML configuration files (see `configs/server.yaml`)
-2. Environment variables (with `RATELIMIT_` prefix)
-3. Command-line flags
-
-#### Available Endpoints
-
-**gRPC API (port 8080)**
-- Rate limit check service
-
-**HTTP/REST Gateway (port 8081)**
-- REST API for rate limit checks
-- Same functionality as gRPC but over HTTP
-
-**Admin/Metrics API (port 8082)**
-- `/health` - Health check endpoint
-- `/metrics` - Prometheus metrics
-- `/admin/config/{clientID}` - Client configuration management
-- `/admin/batch` - Batch configuration operations
-
-#### Docker Deployment
-
-```bash
-# Build the image
-docker build -t go-ratelimit:latest .
-
-# Run with custom configuration
-docker run -d \
-  --name ratelimit-server \
-  -p 8080:8080 -p 8081:8081 -p 8082:8082 \
-  -e RATELIMIT_REDIS_ADDR=redis:6379 \
-  -e RATELIMIT_DEFAULT_REQUEST_LIMIT=1000 \
-  -e RATELIMIT_DEFAULT_BYTE_LIMIT=10485760 \
-  -e RATELIMIT_ADMIN_KEY=your-secret-key \
-  -v $(pwd)/configs:/configs \
-  go-ratelimit:latest
-```
-
-#### Kubernetes Deployment
-
-```bash
-# Create namespace
-kubectl create namespace ratelimit
-
-# Deploy Redis
-kubectl apply -f deployment/kubernetes/redis.yaml
-
-# Deploy rate limit server
-kubectl apply -f deployment/kubernetes/deployment.yaml
-```
-
-#### Monitoring
-
-The server includes built-in Prometheus metrics and can be monitored using the included Grafana dashboard:
-
-```bash
-# Deploy full monitoring stack
-docker-compose up -d
-
-# Access services
-# - Rate Limit Server: http://localhost:8081
-# - Admin API: http://localhost:8082
-# - Prometheus: http://localhost:9090
-# - Grafana: http://localhost:3000 (admin/admin)
-```
 
 ## Development
 
