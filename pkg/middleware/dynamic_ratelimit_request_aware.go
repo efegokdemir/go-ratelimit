@@ -76,6 +76,26 @@ func DynamicRateLimitMiddlewareWithRequestSize(dl limiter.RateLimiter, log Logge
 				return
 			}
 
+			// Pre-flight byte check: Check if we have a request size and if it would exceed the limit
+			if requestSizeFunc != nil {
+				if expectedSize, ok := requestSizeFunc(r); ok && expectedSize > 0 {
+					// Check if this request would exceed the byte limit
+					if cfg.ByteLimit > 0 && bytesRemaining < expectedSize {
+						mbExpected := float64(expectedSize) / (1024 * 1024)
+						mbRemaining := float64(bytesRemaining) / (1024 * 1024)
+						mbLimit := float64(cfg.ByteLimit) / (1024 * 1024)
+						
+						log.Error(fmt.Sprintf("Byte rate limit would be exceeded for client %s: %.3f MB requested, %.3f MB remaining of %.3f MB/s limit", 
+							rateLimitKey, mbExpected, mbRemaining, mbLimit))
+						
+						// Calculate when they can retry
+						w.Header().Set("Retry-After", fmt.Sprintf("%d", reset))
+						http.Error(w, "byte rate limit exceeded", http.StatusTooManyRequests)
+						return
+					}
+				}
+			}
+
 			// Create a request-aware byte counter wrapper
 			bcw := NewRequestAwareByteCounterWriter(w, r, requestSizeFunc)
 
