@@ -68,6 +68,7 @@ func (rl *RedisLimiter) GetLimit() int {
 }
 
 // slidingLua uses Redis TIME for clock, ZSET for timestamps.
+// OPTIMIZED VERSION: Reduces Redis operations and improves performance
 // KEYS[1] = rate key
 // ARGV[1] = window_ms
 // ARGV[2] = limit
@@ -82,7 +83,7 @@ local now_ms = tonumber(t[1]) * 1000 + math.floor(tonumber(t[2]) / 1000)
 
 local min_ts = now_ms - window_ms
 
--- prune old
+-- prune old entries
 redis.call('ZREMRANGEBYSCORE', key, 0, min_ts)
 
 local count = redis.call('ZCARD', key)
@@ -100,16 +101,21 @@ if count < limit then
 else
   allowed = 0
   remaining = 0
+  -- Only compute reset if we're rate limited (avoid ZRANGE when not needed)
+  local oldest = redis.call('ZRANGE', key, 0, 0, 'WITHSCORES')
+  if oldest ~= nil and #oldest >= 2 then
+    local oldestScore = tonumber(oldest[2])
+    reset = math.max(0, math.ceil((oldestScore + window_ms - now_ms) / 1000))
+  else
+    reset = math.ceil(window_ms / 1000)
+  end
+  -- Set TTL and return early
+  redis.call('PEXPIRE', key, window_ms + 1000)
+  return {allowed, remaining, reset}
 end
 
--- compute reset from oldest element in window
-local oldest = redis.call('ZRANGE', key, 0, 0, 'WITHSCORES')
-if oldest ~= nil and #oldest >= 2 then
-  local oldestScore = tonumber(oldest[2])
-  reset = math.max(0, math.ceil((oldestScore + window_ms - now_ms) / 1000))
-else
-  reset = math.ceil(window_ms / 1000)
-end
+-- For allowed requests, compute a fixed reset time
+reset = math.ceil(window_ms / 1000)
 
 -- keep TTL slightly > window to avoid premature eviction & reduce churn
 redis.call('PEXPIRE', key, window_ms + 1000)

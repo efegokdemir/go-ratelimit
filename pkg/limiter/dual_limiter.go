@@ -101,9 +101,11 @@ func (dl *DualLimiter) RecordBytes(ctx context.Context, r *http.Request, bytes i
 	return allowed, remaining, reset, nil
 }
 
-// dualSlidingLua uses Redis TIME for clock, ZSETs for timestamps and bytes.
+// dualSlidingLua uses Redis TIME for clock, ZSETs for timestamps and a hash for byte tracking.
+// OPTIMIZED VERSION: Uses a separate hash to track byte totals instead of iterating through all entries
 // KEYS[1] = request rate key
-// KEYS[2] = byte rate key
+// KEYS[2] = byte rate key (ZSET for timestamps)
+// KEYS[3] = byte total key (Hash for efficient summing)
 // ARGV[1] = window_ms
 // ARGV[2] = request limit
 // ARGV[3] = byte limit
@@ -111,6 +113,7 @@ func (dl *DualLimiter) RecordBytes(ctx context.Context, r *http.Request, bytes i
 var dualSlidingLua = `
 local req_key = KEYS[1]
 local byte_key = KEYS[2]
+local byte_total_key = KEYS[2] .. ":total"
 local window_ms = tonumber(ARGV[1])
 local req_limit = tonumber(ARGV[2])
 local byte_limit = tonumber(ARGV[3])
@@ -122,21 +125,30 @@ local now_ms = tonumber(t[1]) * 1000 + math.floor(tonumber(t[2]) / 1000)
 
 local min_ts = now_ms - window_ms
 
--- prune old entries from both keys
+-- Get entries to be pruned from byte_key BEFORE pruning
+local pruned_entries = redis.call('ZRANGEBYSCORE', byte_key, 0, min_ts)
+
+-- Subtract bytes from pruned entries
+for i = 1, #pruned_entries do
+    local bytes_str = string.match(pruned_entries[i], "^(%d+)-")
+    if bytes_str then
+        local old_bytes = tonumber(bytes_str)
+        redis.call('HINCRBY', byte_total_key, 'total', -old_bytes)
+    end
+end
+
+-- Now prune old entries from both keys
 redis.call('ZREMRANGEBYSCORE', req_key, 0, min_ts)
 redis.call('ZREMRANGEBYSCORE', byte_key, 0, min_ts)
 
 local req_count = redis.call('ZCARD', req_key)
-local byte_count = 0
 
--- Get total bytes in window
-local byte_entries = redis.call('ZRANGE', byte_key, 0, -1)
-for i = 1, #byte_entries do
-    -- Extract the byte count from the member string (format: "bytes-timestamp-random")
-    local bytes_str = string.match(byte_entries[i], "^(%d+)-")
-    if bytes_str then
-        byte_count = byte_count + tonumber(bytes_str)
-    end
+-- Get byte count from hash (O(1) instead of O(N))
+local byte_count = tonumber(redis.call('HGET', byte_total_key, 'total') or '0')
+
+-- Ensure byte_count is not negative
+if byte_count < 0 then
+    byte_count = 0
 end
 
 local allowed = 0
@@ -160,6 +172,8 @@ else
         -- Add the bytes to the byte counter
         local byte_member = tostring(bytes) .. "-" .. tostring(now_ms) .. "-" .. tostring(math.random(1, 999999))
         redis.call('ZADD', byte_key, now_ms, byte_member)
+        -- Increment the total in hash (O(1))
+        redis.call('HINCRBY', byte_total_key, 'total', bytes)
         allowed = 1
         remaining = byte_limit - (byte_count + bytes)
     else
@@ -187,6 +201,7 @@ end
 -- keep TTL slightly > window to avoid premature eviction & reduce churn
 redis.call('PEXPIRE', req_key, window_ms + 1000)
 redis.call('PEXPIRE', byte_key, window_ms + 1000)
+redis.call('PEXPIRE', byte_total_key, window_ms + 1000)
 
 return {allowed, remaining, reset}
 `

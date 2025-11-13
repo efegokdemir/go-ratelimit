@@ -226,7 +226,7 @@ func TestDualLimiterWithMock(t *testing.T) {
 			requestLimit: 5,
 			byteLimit:    1000,
 			requests:     []int{100, 200, 300, 200, 200, 100},
-			expectDenied: 2, // Either limit can be hit
+			expectDenied: 1, // Request #6 exceeds both limits (5 requests, 1000 bytes already used)
 			deniedReason: "either",
 		},
 	}

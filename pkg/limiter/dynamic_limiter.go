@@ -166,9 +166,11 @@ func (dl *DynamicLimiter) ResetClientConfig(ctx context.Context, clientID string
 }
 
 // GetCurrentUsage returns the current byte usage for a client without recording new bytes
+// OPTIMIZED VERSION: Uses hash-based total instead of iterating through all entries
 func (dl *DynamicLimiter) GetCurrentUsage(ctx context.Context, r *http.Request) (int64, error) {
 	k := dl.keyBuilder(r)
 	byteKey := dl.byteKey(k)
+	byteTotalKey := byteKey + ":total"
 	clientID := extractClientID(k)
 
 	// Get client config to get window duration
@@ -179,25 +181,50 @@ func (dl *DynamicLimiter) GetCurrentUsage(ctx context.Context, r *http.Request) 
 	windowMs := int64(cfg.WindowSecs * 1000)
 	minTime := now - windowMs
 
-	// Remove expired entries
-	dl.rdb.ZRemRangeByScore(ctx, byteKey, "-inf", fmt.Sprintf("%d", minTime))
-
-	// Get all current entries
-	entries, err := dl.rdb.ZRange(ctx, byteKey, 0, -1).Result()
+	// Get entries that will be pruned
+	prunedEntries, err := dl.rdb.ZRangeByScore(ctx, byteKey, &redis.ZRangeBy{
+		Min: "-inf",
+		Max: fmt.Sprintf("%d", minTime),
+	}).Result()
 	if err != nil {
 		return 0, err
 	}
 
-	// Sum up the bytes
-	var totalBytes int64
-	for _, entry := range entries {
-		// Extract bytes from "bytes-timestamp-random" format
+	// Subtract bytes from pruned entries before removing them
+	var bytesToSubtract int64
+	for _, entry := range prunedEntries {
 		parts := strings.Split(entry, "-")
 		if len(parts) > 0 {
 			if bytes, err := strconv.ParseInt(parts[0], 10, 64); err == nil {
-				totalBytes += bytes
+				bytesToSubtract += bytes
 			}
 		}
+	}
+
+	// Update the total if we have bytes to subtract
+	if bytesToSubtract > 0 {
+		dl.rdb.HIncrBy(ctx, byteTotalKey, "total", -bytesToSubtract)
+	}
+
+	// Remove expired entries
+	dl.rdb.ZRemRangeByScore(ctx, byteKey, "-inf", fmt.Sprintf("%d", minTime))
+
+	// Get total from hash (O(1) operation)
+	totalStr, err := dl.rdb.HGet(ctx, byteTotalKey, "total").Result()
+	if err != nil && err != redis.Nil {
+		return 0, err
+	}
+
+	totalBytes := int64(0)
+	if totalStr != "" {
+		totalBytes, _ = strconv.ParseInt(totalStr, 10, 64)
+	}
+
+	// Ensure non-negative
+	if totalBytes < 0 {
+		totalBytes = 0
+		// Reset the hash to 0
+		dl.rdb.HSet(ctx, byteTotalKey, "total", 0)
 	}
 
 	return totalBytes, nil
